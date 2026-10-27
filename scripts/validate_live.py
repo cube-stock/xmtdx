@@ -11,8 +11,7 @@ from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from xmtdx import AsyncTdxClient, KlineCategory, Market, TdxClient
-from xmtdx.transport.sync import KNOWN_HOSTS
+from xmtdx import KNOWN_HOSTS, AsyncTdxClient, KlineCategory, Market, TdxClient
 
 
 def _date(bar: Any) -> int:
@@ -54,9 +53,7 @@ async def _validate_async(hosts: list[str], timeout: float) -> dict[str, Any]:
         )
         try:
             count = await client.get_security_count(Market.SH)
-            bars = await client.get_bars(
-                Market.SH, "600000", KlineCategory.DAY, 0, 2
-            )
+            bars = await client.get_bars(Market.SH, "600000", KlineCategory.DAY, 0, 2)
             report["async_core"] = {
                 "ok": count > 0 and bool(bars),
                 "elapsed_ms": round((time.monotonic() - started) * 1000),
@@ -72,6 +69,58 @@ async def _validate_async(hosts: list[str], timeout: float) -> dict[str, Any]:
             "error": f"{type(error).__name__}: {error}",
         }
     return report
+
+
+def _check_market_stat(client: TdxClient) -> object:
+    stat = client.get_market_stat()
+    if (
+        stat.up_count + stat.down_count + stat.neutral_count + stat.suspended_count
+        != stat.total_count
+    ):
+        raise RuntimeError("市场计数不守恒")
+    return stat
+
+
+def _check_price_limits(client: TdxClient) -> list[tuple[float | None, float | None]]:
+    samples = [
+        (Market.SH, "600000", "浦发银行"),
+        (Market.SZ, "300750", "宁德时代"),
+        (Market.SH, "688981", "中芯国际"),
+        (Market.SH, "999999", "上证指数"),
+    ]
+    quotes = client.get_security_quotes([(market, code) for market, code, _ in samples])
+    if len(quotes) != len(samples):
+        raise RuntimeError("涨跌停验证行情数量不符")
+    results = []
+    for quote, (market, code, name) in zip(quotes, samples, strict=True):
+        limits = client.get_price_limits(market, code, name, quote.pre_close)
+        if code == "999999":
+            if limits != (None, None):
+                raise RuntimeError("指数不应有涨跌停价")
+        elif None in limits:
+            raise RuntimeError(f"{code} 涨跌停价缺失")
+        results.append(limits)
+    return results
+
+
+def _check_current_fund_flow(client: TdxClient) -> object:
+    flow = client.get_fund_flow(Market.SH, "600000")
+    classified = sum(
+        (
+            flow.super_in,
+            flow.large_in,
+            flow.medium_in,
+            flow.small_in,
+            flow.super_out,
+            flow.large_out,
+            flow.medium_out,
+            flow.small_out,
+        )
+    )
+    quote = client.get_security_quotes([(Market.SH, "600000")])[0]
+    if quote.amount > 0 and classified / quote.amount < 0.90:
+        raise RuntimeError("分档金额低于行情快照成交额的 90%，需检查中性成交及盘中更新影响")
+    return flow
 
 
 def validate(hosts: list[str], timeout: float, full_list: bool, quick: bool) -> dict[str, Any]:
@@ -90,9 +139,7 @@ def validate(hosts: list[str], timeout: float, full_list: bool, quick: bool) -> 
             _run_check(
                 checks,
                 f"security_count_{market.name.lower()}",
-                lambda market=market: _require(
-                    client.get_security_count(market), "证券数量为 0"
-                ),
+                lambda market=market: _require(client.get_security_count(market), "证券数量为 0"),
             )
 
         if full_list:
@@ -118,9 +165,7 @@ def validate(hosts: list[str], timeout: float, full_list: bool, quick: bool) -> 
             lambda: _require(
                 {
                     category.name: _require(
-                        client.get_security_bars(
-                            Market.SH, "600000", category, 0, 2
-                        ),
+                        client.get_security_bars(Market.SH, "600000", category, 0, 2),
                         f"{category.name} K 线为空",
                     )
                     for category in KlineCategory
@@ -132,9 +177,7 @@ def validate(hosts: list[str], timeout: float, full_list: bool, quick: bool) -> 
             checks,
             "index_bars",
             lambda: _require(
-                client.get_index_bars(
-                    Market.SH, "000001", KlineCategory.DAY, 0, 5
-                ),
+                client.get_index_bars(Market.SH, "000001", KlineCategory.DAY, 0, 5),
                 "指数 K 线为空",
             ),
         )
@@ -155,9 +198,7 @@ def validate(hosts: list[str], timeout: float, full_list: bool, quick: bool) -> 
                 checks,
                 "minute_history",
                 lambda: _require(
-                    client.get_history_minute_time_data(
-                        Market.SH, "600000", history_date
-                    ),
+                    client.get_history_minute_time_data(Market.SH, "600000", history_date),
                     "历史分时为空",
                 ),
             )
@@ -165,9 +206,7 @@ def validate(hosts: list[str], timeout: float, full_list: bool, quick: bool) -> 
                 checks,
                 "transaction_history",
                 lambda: _require(
-                    client.get_history_transaction_data(
-                        Market.SH, "600000", history_date, 0, 20
-                    ),
+                    client.get_history_transaction_data(Market.SH, "600000", history_date, 0, 20),
                     "历史逐笔为空",
                 ),
             )
@@ -204,7 +243,8 @@ def validate(hosts: list[str], timeout: float, full_list: bool, quick: bool) -> 
                 ),
             )
 
-        _run_check(checks, "market_stat", client.get_market_stat)
+        _run_check(checks, "market_stat", lambda: _check_market_stat(client))
+        _run_check(checks, "price_limits", lambda: _check_price_limits(client))
         if not quick:
             _run_check(
                 checks,
@@ -219,12 +259,14 @@ def validate(hosts: list[str], timeout: float, full_list: bool, quick: bool) -> 
             _run_check(
                 checks,
                 "fund_flow_current",
-                lambda: client.get_fund_flow(Market.SH, "600000"),
+                lambda: _check_current_fund_flow(client),
             )
             _run_check(
                 checks,
                 "fund_flow_history",
-                lambda: client.get_history_fund_flow(Market.SH, "600000", 0, 1),
+                lambda: _require(
+                    client.get_history_fund_flow(Market.SH, "600000", 0, 1), "历史资金流为空"
+                ),
             )
     finally:
         client.close()

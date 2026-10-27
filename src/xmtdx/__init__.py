@@ -33,18 +33,20 @@ from .models import (
     XDXR_CATEGORY_NAMES,
     CompanyInfoCategory,
     FinanceInfo,
+    FundFlow,
+    HistoricalFundFlow,
     IndexBar,
     KlineCategory,
     Market,
+    MarketStat,
     MinuteBar,
     SecurityBar,
     SecurityInfo,
     SecurityQuote,
+    TdxBlock,
     TransactionRecord,
     XdxrRecord,
 )
-from .models.finance import TdxBlock
-from .models.stats import FundFlow, HistoricalFundFlow, MarketStat
 from .transport.async_ import ping_all_async
 from .transport.capture import CapturedResponse
 from .transport.sync import KNOWN_HOSTS, ping_all
@@ -85,4 +87,4 @@ __all__ = [
     "CapturedResponse",
 ]
 
-__version__ = "0.2.1"
+__version__ = "0.3.0"

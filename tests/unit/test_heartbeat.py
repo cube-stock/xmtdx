@@ -57,13 +57,3 @@ def test_heartbeat_stops_on_close():
             assert task.done() or task.cancelled()
 
     asyncio.run(run_test())
-
-
-if __name__ == "__main__":
-    # 手动跑一下
-    async def run():
-        await test_heartbeat_sends_periodically()
-        await test_heartbeat_stops_on_close()
-        print("Heartbeat tests passed!")
-    
-    asyncio.run(run())

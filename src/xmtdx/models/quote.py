@@ -60,8 +60,8 @@ class SecurityQuote:
 
     # 价格指标
     rise_speed: float  # 涨速（原 reversed_bytes9 / 100）
-    limit_up: float | None    # 涨停价（业务规则计算）
-    limit_down: float | None  # 跌停价（业务规则计算）
+    limit_up: float | None    # 预留涨停价；解析默认 None，请通过 get_price_limits() 计算
+    limit_down: float | None  # 预留跌停价；解析默认 None，请通过 get_price_limits() 计算
 
     unknown_0: int = field(default=0, repr=False)
     unknown_1: int = field(default=0, repr=False)
@@ -79,9 +79,6 @@ class SecurityQuote:
 
     # 单只证券行情快照更新时间，不含日期（从 unknown_0 解析）
     quote_time: str = field(default="", repr=True)
-
-    # 0.2.1 起弃用：兼容旧名称；该字段不是服务器当前墙上时间。
-    server_time: str = field(default="", repr=True)
 
     # 原始字节（该股票记录切片）
     _raw: bytes = field(default=b"", repr=False, compare=False)

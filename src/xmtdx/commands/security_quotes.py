@@ -6,6 +6,7 @@
 import struct
 
 from .._binary import unpack_from
+from .._config import QUOTE_PAGE_SIZE
 from ..codec.price import get_price
 from ..codec.volume import get_volume
 from ..exceptions import TdxDecodeError, TdxResponseError
@@ -28,11 +29,6 @@ def _format_quote_time(raw: int) -> str:
     return f"{hours:02d}:{minutes:02d}:{seconds:02d}.{millis:03d}"
 
 
-def _format_server_time(raw: int) -> str:
-    """兼容旧内部名称；该值是证券行情快照时间，不是服务器当前时间。"""
-    return _format_quote_time(raw)
-
-
 class GetSecurityQuotesCmd(BaseCommand[list[SecurityQuote]]):
     """批量获取实时行情（最多 80 只）。
 
@@ -43,7 +39,7 @@ class GetSecurityQuotesCmd(BaseCommand[list[SecurityQuote]]):
     def __init__(self, stocks: list[tuple[Market, str]]) -> None:
         if not stocks:
             raise ValueError("stocks 不能为空")
-        if len(stocks) > 80:
+        if len(stocks) > QUOTE_PAGE_SIZE:
             raise ValueError("单次最多查询 80 只股票")
         if len(set(stocks)) != len(stocks):
             raise ValueError("stocks 不能包含重复证券")
@@ -208,7 +204,6 @@ class GetSecurityQuotesCmd(BaseCommand[list[SecurityQuote]]):
                     unknown_7=unknown_7,
                     unknown_8=unknown_8,
                     quote_time=quote_time,
-                    server_time=quote_time,
                     _raw=body[record_start:pos],
                 )
             )

@@ -5,6 +5,8 @@ import time
 from types import TracebackType
 from typing import TYPE_CHECKING, TypeVar
 
+from .._config import CONNECTION_TIMEOUT, DEFAULT_PORT
+from .._config import KNOWN_HOSTS as KNOWN_HOSTS
 from ..codec.frame import HEADER_SIZE, decompress_body, parse_header
 from ..commands.setup import SETUP_COMMANDS
 from ..exceptions import TdxConnectionError, TdxError
@@ -15,28 +17,9 @@ if TYPE_CHECKING:
 
 T = TypeVar("T")
 
-_DEFAULT_HOST = "180.153.18.170"
-_DEFAULT_PORT = 7709
-_DEFAULT_TIMEOUT = 15.0
-
-# 已知可用的通达信行情服务器（按优先级排序）
-KNOWN_HOSTS: list[str] = [
-    "180.153.18.170",
-    "124.71.187.122",
-    "180.153.18.171",
-    "180.153.18.172",
-    "119.147.212.81",
-    "115.238.56.198",
-    "115.238.90.165",
-    "218.75.126.9",
-    "47.107.75.159",
-    "59.175.238.38",
-]
-
-
 def ping_host(
     host: str,
-    port: int = _DEFAULT_PORT,
+    port: int = DEFAULT_PORT,
     timeout: float = 5.0,
 ) -> float | None:
     """测量服务器完成完整握手和一次业务查询所需的时间（秒）。
@@ -58,7 +41,7 @@ def ping_host(
 
 def ping_all(
     hosts: list[str] = KNOWN_HOSTS,
-    port: int = _DEFAULT_PORT,
+    port: int = DEFAULT_PORT,
     timeout: float = 5.0,
 ) -> list[tuple[str, float]]:
     """并发测量多台服务器延迟，返回按延迟排序的 (host, latency_seconds) 列表。
@@ -67,6 +50,8 @@ def ping_all(
     """
     import concurrent.futures
 
+    if not hosts:
+        return []
     results: list[tuple[str, float]] = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=len(hosts)) as pool:
         futures = {pool.submit(ping_host, h, port, timeout): h for h in hosts}
@@ -100,9 +85,9 @@ class TdxConnection:
 
     def __init__(
         self,
-        host: str = _DEFAULT_HOST,
-        port: int = _DEFAULT_PORT,
-        timeout: float = _DEFAULT_TIMEOUT,
+        host: str = KNOWN_HOSTS[0],
+        port: int = DEFAULT_PORT,
+        timeout: float = CONNECTION_TIMEOUT,
     ) -> None:
         self.host = host
         self.port = port
@@ -111,6 +96,8 @@ class TdxConnection:
 
     def connect(self) -> None:
         """建立 TCP 连接并完成握手（发送3条 setup 命令）。"""
+        if self.is_connected:
+            return
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(self.timeout)
         try:

@@ -1,7 +1,7 @@
 """A 股价格限制规则引擎。"""
 
 from ..models.enums import Market
-from ..models.finance import FinanceInfo
+from .security import is_index
 
 
 def get_no_limit_window_days(market: Market, code: str, name: str) -> int:
@@ -12,7 +12,7 @@ def get_no_limit_window_days(market: Market, code: str, name: str) -> int:
         1: 北交所上市首日不设涨跌幅限制
         5: 沪深主板/创业板/科创板上市前 5 个交易日不设涨跌幅限制
     """
-    if _is_index_like(market, code, name):
+    if is_index(market, code, name):
         return 0
 
     if code.startswith(("43", "83", "87", "92")):
@@ -26,23 +26,12 @@ def get_no_limit_window_days(market: Market, code: str, name: str) -> int:
     return 0
 
 
-def _is_index_like(market: Market, code: str, name: str) -> bool:
-    """判断是否为指数/板块类代码。"""
-    if market == Market.SH and code.startswith(
-        ("000", "880", "881", "882", "883", "884", "885", "999")
-    ):
-        return True
-    if market == Market.SZ and code.startswith(("395", "399")):
-        return True
-    return "指数" in name or "板块" in name
-
-
 def compute_price_limits(
     market: Market,
     code: str,
     name: str,
     pre_close: float,
-    finance_info: FinanceInfo | None = None,
+    *,
     listed_days: int | None = None,
 ) -> tuple[float | None, float | None]:
     """根据板块规则计算涨跌停价。
@@ -61,7 +50,7 @@ def compute_price_limits(
         return None, None
 
     # 指数/板块类代码通常无涨跌停。
-    if _is_index_like(market, code, name):
+    if is_index(market, code, name):
         return None, None
 
     no_limit_window_days = get_no_limit_window_days(market, code, name)
@@ -75,9 +64,6 @@ def compute_price_limits(
         limit_pct = 0.20
     elif code.startswith(("43", "83", "87", "92")):
         limit_pct = 0.30
-
-    # `listed_days` 是更可靠的交易日维度输入；finance_info 仍保留给上层调用方扩展。
-    _ = finance_info
 
     def _round_price(p: float) -> float:
         return round(p + 0.00001, 2)

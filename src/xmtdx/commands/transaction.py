@@ -6,6 +6,7 @@
 import struct
 
 from .._binary import unpack_from
+from .._config import TRANSACTION_PAGE_SIZE
 from ..codec.datetime_ import get_time
 from ..codec.price import get_price
 from ..models.enums import Market
@@ -21,7 +22,7 @@ class GetTransactionDataCmd(BaseCommand[list[TransactionRecord]]):
         self.market = market
         self.code = validate_code(code).encode("ascii")
         self.start = validate_uint16(start, "start")
-        self.count = validate_count(count, 800)
+        self.count = validate_count(count, TRANSACTION_PAGE_SIZE)
 
     def build_request(self) -> bytes:
         header = bytes.fromhex("0c170801010 10e000e00c50f".replace(" ", ""))
@@ -43,7 +44,7 @@ class GetHistoryTransactionDataCmd(BaseCommand[list[TransactionRecord]]):
         self.code = validate_code(code).encode("ascii")
         self.date = validate_date(date)
         self.start = validate_uint16(start, "start")
-        self.count = validate_count(count, 800)
+        self.count = validate_count(count, TRANSACTION_PAGE_SIZE)
 
     def build_request(self) -> bytes:
         # 历史逐笔：header + pack("<IH6sHH", date, market, code, start, count)

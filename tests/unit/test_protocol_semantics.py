@@ -92,16 +92,15 @@ def test_security_quotes_limit_mapping():
     assert q.limit_up is None
     assert q.limit_down is None
     assert q.pre_close == 10.05
-    assert q.quote_time == q.server_time
+    assert not hasattr(q, "server_time")
 
 
 def test_security_quotes_quote_time_format():
     """行情快照时间应按“小时 + 百万分之一小时”统一解码。"""
-    from xmtdx.commands.security_quotes import _format_quote_time, _format_server_time
+    from xmtdx.commands.security_quotes import _format_quote_time
 
     assert _format_quote_time(9500000) == "09:30:00.000"
     assert _format_quote_time(14999212) == "14:59:57.163"
-    assert _format_server_time(14999212) == _format_quote_time(14999212)
 
 
 def test_compute_price_limits_for_stocks():

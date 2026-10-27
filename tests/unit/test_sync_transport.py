@@ -100,3 +100,24 @@ def test_sync_capture_retains_wire_bytes() -> None:
     assert captured.body == body
     assert captured.result == 42
     assert sock.requests[:3] == list(SETUP_COMMANDS)
+
+
+def test_repeated_connect_reuses_existing_socket() -> None:
+    sock = _ScriptedSocket(_frame(b"") * len(SETUP_COMMANDS))
+    conn = TdxConnection("127.0.0.1")
+    with patch("xmtdx.transport.sync.socket.socket", return_value=sock) as factory:
+        conn.connect()
+        conn.connect()
+        factory.assert_called_once()
+        assert len(sock.requests) == len(SETUP_COMMANDS)
+        conn.close()
+    assert sock.closed
+
+
+def test_empty_host_probe_is_consistent_with_async() -> None:
+    import asyncio
+
+    from xmtdx.transport.async_ import ping_all_async
+    from xmtdx.transport.sync import ping_all
+
+    assert ping_all([]) == asyncio.run(ping_all_async([])) == []

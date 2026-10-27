@@ -1,4 +1,4 @@
-"""针对本轮 A 股增强功能的单元测试。"""
+"""A 股列表、资金流与分时查询测试。"""
 
 import asyncio
 import struct
@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from xmtdx import AsyncTdxClient, Market, TdxClient
-from xmtdx.client import _classify_fund_flow
+from xmtdx._client_logic import _classify_fund_flow
 from xmtdx.exceptions import TdxResponseError
 from xmtdx.models.bar import SecurityBar
 from xmtdx.models.quote import SecurityQuote
@@ -70,7 +70,7 @@ def test_classify_fund_flow_exact_thresholds_use_lower_bucket():
 
 @patch("xmtdx.client.TdxConnection")
 def test_get_security_list_all_filtering(_mock_conn_cls):
-    """测试三市 A 股过滤与行业挂载逻辑。"""
+    """测试沪深 A 股过滤与行业挂载逻辑。"""
     client = TdxClient("127.0.0.1")
     
     # 模拟行业配置 tdxhy.cfg
@@ -279,7 +279,7 @@ def test_get_minute_time_data_falls_back_to_current_endpoint(_mock_conn_cls):
     ), patch.object(
         TdxClient,
         "get_history_minute_time_data",
-        side_effect=RuntimeError("history unavailable"),
+        side_effect=TdxResponseError("history unavailable"),
     ) as mock_history, patch.object(
         TdxClient,
         "_execute",

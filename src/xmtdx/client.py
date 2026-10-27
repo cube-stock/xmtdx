@@ -1,17 +1,40 @@
 """高层行情 API：TdxClient（同步）和 AsyncTdxClient（asyncio）。"""
 
 import asyncio
-import hashlib
-import math
 from collections.abc import Awaitable, Callable, Sequence
-from datetime import datetime
 from types import TracebackType
 from typing import TypeVar
-from zoneinfo import ZoneInfo
 
+from ._client_logic import (
+    _before_a_share_session,
+    _classify_fund_flow,
+    _date_from_bar,
+    _historical_fund_flow_from_flow,
+    _historical_fund_flow_from_records,
+    _now_in_shanghai,
+    _today_in_shanghai,
+    _unique_hosts,
+    _validate_bars,
+    _validate_fund_flow_coverage,
+    _validate_minute_bars,
+    filter_a_shares,
+    market_stat_from_quotes,
+    quote_batches,
+)
+from ._config import (
+    BAR_PAGE_SIZE,
+    CLIENT_TIMEOUT,
+    DEFAULT_PORT,
+    FILE_CHUNK_SIZE,
+    MAX_PAGES,
+    SECURITY_PAGE_SIZE,
+    TRANSACTION_PAGE_SIZE,
+)
+from ._pagination import BarRange, FileChunks, TransactionPages
 from .codec.block import parse_block_dat
 from .codec.industry import parse_tdxhy_cfg
 from .codec.price_rules import compute_price_limits, get_no_limit_window_days
+from .codec.security import is_index
 from .commands.base import BaseCommand
 from .commands.block_info import GetBlockInfoCmd, GetBlockInfoMetaCmd
 from .commands.company_info import GetCompanyInfoCategoryCmd, GetCompanyInfoContentCmd
@@ -35,186 +58,8 @@ from .models.stats import FundFlow, HistoricalFundFlow, MarketStat
 from .models.timeseries import MinuteBar, TransactionRecord
 from .transport.async_ import AsyncTdxConnection, ping_all_async
 from .transport.sync import KNOWN_HOSTS, TdxConnection, ping_all
-from .validation import validate_date
 
-_DEFAULT_PORT = 7709
-_DEFAULT_TIMEOUT = 5.0
 _T = TypeVar("_T")
-_SHANGHAI_TZ = ZoneInfo("Asia/Shanghai")
-
-
-def _today_in_shanghai() -> int:
-    return int(datetime.now(_SHANGHAI_TZ).strftime("%Y%m%d"))
-
-
-def _now_in_shanghai() -> datetime:
-    return datetime.now(_SHANGHAI_TZ)
-
-
-def _record_signature(
-    record: TransactionRecord,
-) -> tuple[int, int, float, int, int, int, int | None]:
-    return (
-        record.hour,
-        record.minute,
-        record.price,
-        record.vol,
-        record.buyorsell,
-        record.unknown_last,
-        record.num_orders,
-    )
-
-
-def _page_signature(
-    records: list[TransactionRecord],
-) -> tuple[tuple[int, int, float, int, int, int, int | None], ...]:
-    return tuple(_record_signature(record) for record in records)
-
-
-def _boundary_overlap(
-    existing: list[TransactionRecord], new_page: list[TransactionRecord]
-) -> int:
-    """返回较早页尾部与现有较新记录头部的最大边界重叠数。"""
-    limit = min(len(existing), len(new_page))
-    existing_signatures = [_record_signature(record) for record in existing[:limit]]
-    new_signatures = [_record_signature(record) for record in new_page[-limit:]]
-    for size in range(limit, 0, -1):
-        if new_signatures[-size:] == existing_signatures[:size]:
-            return size
-    return 0
-
-
-def _validate_fund_flow_coverage(
-    records: list[TransactionRecord], quote: SecurityQuote
-) -> None:
-    """保证逐笔至少覆盖取得行情快照时已经公布的成交量。"""
-    transaction_volume = sum(record.vol for record in records)
-    if transaction_volume + 1e-6 < quote.vol:
-        raise TdxResponseError(
-            "当日逐笔成交覆盖不完整: "
-            f"transaction_volume={transaction_volume}, quote_volume={quote.vol}"
-        )
-
-
-def _classify_fund_flow(records: list[TransactionRecord]) -> FundFlow:
-    stats = {
-        "super_in": 0.0,
-        "large_in": 0.0,
-        "medium_in": 0.0,
-        "small_in": 0.0,
-        "super_out": 0.0,
-        "large_out": 0.0,
-        "medium_out": 0.0,
-        "small_out": 0.0,
-    }
-
-    for record in records:
-        amount = record.price * record.vol * 100.0
-        direction = (
-            "in" if record.buyorsell == 0 else "out" if record.buyorsell == 1 else None
-        )
-        if not direction:
-            continue
-
-        if amount > 1_000_000:
-            stats[f"super_{direction}"] += amount
-        elif amount > 200_000:
-            stats[f"large_{direction}"] += amount
-        elif amount > 40_000:
-            stats[f"medium_{direction}"] += amount
-        else:
-            stats[f"small_{direction}"] += amount
-
-    return FundFlow(**stats)
-
-
-def _date_from_bar(bar: SecurityBar) -> int:
-    return bar.year * 10000 + bar.month * 100 + bar.day
-
-
-def _unique_hosts(primary: str, fallbacks: Sequence[str]) -> list[str]:
-    hosts: list[str] = []
-    for host in (primary, *fallbacks):
-        if host and host not in hosts:
-            hosts.append(host)
-    if not hosts:
-        raise ValueError("至少需要一个行情服务器")
-    return hosts
-
-
-def _looks_like_index(market: Market, code: str) -> bool:
-    if market == Market.SH:
-        return code.startswith(("000", "880", "881", "882", "883", "884", "885", "999"))
-    if market == Market.SZ:
-        return code.startswith(("395", "399"))
-    return False
-
-
-def _validate_bars(bars: Sequence[SecurityBar], context: str) -> None:
-    for index, bar in enumerate(bars):
-        values = (bar.open, bar.close, bar.high, bar.low, bar.vol, bar.amount)
-        if not all(math.isfinite(value) for value in values):
-            raise TdxResponseError(f"{context}[{index}] 包含非有限数值")
-        try:
-            datetime(bar.year, bar.month, bar.day)
-        except ValueError:
-            raise TdxResponseError(
-                f"{context}[{index}] 日期非法: {bar.year}-{bar.month}-{bar.day}"
-            ) from None
-        if not 1990 <= bar.year <= 2100:
-            raise TdxResponseError(
-                f"{context}[{index}] 日期非法: {bar.year}-{bar.month}-{bar.day}"
-            )
-        if bar.vol < 0 or bar.amount < 0:
-            raise TdxResponseError(f"{context}[{index}] 成交量或成交额为负")
-        if bar.high + 0.001 < max(bar.open, bar.close, bar.low):
-            raise TdxResponseError(f"{context}[{index}] 最高价关系非法")
-        if bar.low - 0.001 > min(bar.open, bar.close, bar.high):
-            raise TdxResponseError(f"{context}[{index}] 最低价关系非法")
-
-
-def _validate_minute_bars(
-    bars: Sequence[MinuteBar], context: str, reference_price: float | None = None
-) -> None:
-    for index, bar in enumerate(bars):
-        if not math.isfinite(bar.price) or bar.price <= 0:
-            raise TdxResponseError(f"{context}[{index}] 价格非法: {bar.price}")
-        if bar.vol < 0:
-            raise TdxResponseError(f"{context}[{index}] 成交量为负: {bar.vol}")
-        if reference_price and not reference_price / 100 <= bar.price <= reference_price * 100:
-            raise TdxResponseError(
-                f"{context}[{index}] 价格 {bar.price} 与参考价 {reference_price} 严重偏离"
-            )
-
-
-def _before_a_share_session(now: datetime) -> bool:
-    return now.weekday() >= 5 or (now.hour, now.minute) < (9, 15)
-
-
-def _historical_fund_flow_from_records(
-    date: int, records: list[TransactionRecord]
-) -> HistoricalFundFlow:
-    return _historical_fund_flow_from_flow(date, _classify_fund_flow(records))
-
-
-def _historical_fund_flow_from_flow(date: int, flow: FundFlow) -> HistoricalFundFlow:
-    year = date // 10000
-    month = (date // 100) % 100
-    day = date % 100
-    return HistoricalFundFlow(
-        year=year,
-        month=month,
-        day=day,
-        super_in=flow.super_in,
-        super_out=flow.super_out,
-        large_in=flow.large_in,
-        large_out=flow.large_out,
-        medium_in=flow.medium_in,
-        medium_out=flow.medium_out,
-        small_in=flow.small_in,
-        small_out=flow.small_out,
-    )
-
 
 # ============================================================
 # 同步客户端
@@ -238,8 +83,8 @@ class TdxClient:
     def __init__(
         self,
         host: str = KNOWN_HOSTS[0],
-        port: int = _DEFAULT_PORT,
-        timeout: float = _DEFAULT_TIMEOUT,
+        port: int = DEFAULT_PORT,
+        timeout: float = CLIENT_TIMEOUT,
         auto_reconnect: bool = True,
         fallback_hosts: Sequence[str] = (),
         max_attempts: int = 2,
@@ -263,13 +108,13 @@ class TdxClient:
     def from_best_host(
         cls,
         hosts: list[str] = KNOWN_HOSTS,
-        port: int = _DEFAULT_PORT,
-        timeout: float = _DEFAULT_TIMEOUT,
+        port: int = DEFAULT_PORT,
+        timeout: float = CLIENT_TIMEOUT,
         ping_timeout: float = 5.0,
         auto_reconnect: bool = True,
         max_attempts: int = 2,
     ) -> "TdxClient":
-        """测量 hosts 中所有服务器延迟，选最低延迟的建立连接。
+        """测量 hosts 中所有服务器延迟，按最低延迟优先配置候选服务器；首次查询或 connect() 时连接。
 
         若所有服务器均不可达，回退到 hosts[0]。
         """
@@ -289,7 +134,7 @@ class TdxClient:
     @staticmethod
     def ping_all(
         hosts: list[str] = KNOWN_HOSTS,
-        port: int = _DEFAULT_PORT,
+        port: int = DEFAULT_PORT,
         timeout: float = 5.0,
     ) -> list[tuple[str, float]]:
         """测量多台服务器延迟，返回按延迟排序的 (host, seconds) 列表。"""
@@ -354,11 +199,10 @@ class TdxClient:
         return self._execute(GetSecurityListCmd(market, start))
 
     def get_security_list_all(self) -> list[SecurityInfo]:
-        """获取沪深 A 股完整证券列表，并自动挂载行业信息。
+        """获取沪深 A 股完整证券列表，并尽力挂载行业信息。
 
         注意：
             `Market.BJ` 的证券列表请求长期存在服务器超时问题，当前版本暂不纳入此方法。
-            若需 BJ 名单，应改由 `base_info.zip` 等文件离线解析获得。
         """
         # 1. 尝试获取行业配置
         industry_map = {}
@@ -366,49 +210,24 @@ class TdxClient:
             cfg_data = self.get_report_file("tdxhy.cfg")
             if cfg_data:
                 industry_map = parse_tdxhy_cfg(cfg_data)
-        except Exception:
+        except (TdxConnectionError, TdxDecodeError, TdxResponseError):
             pass
 
         all_stocks: list[SecurityInfo] = []
-        # 注意：Market.BJ 证券列表请求常年超时，短期降级为仅 SH/SZ；
-        # BJ 列表需解析 base_info.zip 获得（待实现）。
+        # BJ 列表不稳定，当前仅扫描沪深。
         for market in [Market.SH, Market.SZ]:
             count = self.get_security_count(market)
-            for start in range(0, count, 1000):
+            for start in range(0, count, SECURITY_PAGE_SIZE):
                 stocks = self.get_security_list(market, start)
-                for s in stocks:
-                    # 精确 A 股过滤规则
-                    is_a_share = False
-                    if market == Market.SH:
-                        # 沪市 A 股：60xxxx, 68xxxx
-                        if s.code.startswith(("60", "68")):
-                            is_a_share = True
-                    elif market == Market.SZ:
-                        # 深市 A 股：00xxxx, 30xxxx
-                        if s.code.startswith(("00", "30")):
-                            is_a_share = True
-                    
-                    if is_a_share:
-                        # 挂载行业信息
-                        if s.code in industry_map:
-                            s.industry_tdx, s.industry_sw = industry_map[s.code]
-                        all_stocks.append(s)
+                all_stocks.extend(filter_a_shares(stocks, market, industry_map))
         return all_stocks
 
-    def get_security_quotes(
-        self, stocks: list[tuple[Market, str]]
-    ) -> list[SecurityQuote]:
+    def get_security_quotes(self, stocks: list[tuple[Market, str]]) -> list[SecurityQuote]:
         """批量获取实时五档行情；超过 80 只时自动按协议上限分片。"""
-        if not stocks:
-            raise ValueError("stocks 不能为空")
-        if len(set(stocks)) != len(stocks):
-            raise ValueError("stocks 不能包含重复证券")
         quotes: list[SecurityQuote] = []
-        for start in range(0, len(stocks), 80):
-            batch: list[SecurityQuote] = self._execute(
-                GetSecurityQuotesCmd(stocks[start:start + 80])
-            )
-            quotes.extend(batch)
+        for batch in quote_batches(stocks):
+            result: list[SecurityQuote] = self._execute(GetSecurityQuotesCmd(batch))
+            quotes.extend(result)
         return quotes
 
     def get_price_limits(
@@ -426,7 +245,7 @@ class TdxClient:
                     market, code, KlineCategory.DAY, 0, no_limit_window_days + 1
                 )
                 listed_days = len(bars)
-            except Exception:
+            except (TdxConnectionError, TdxDecodeError, TdxResponseError):
                 listed_days = None
 
         return compute_price_limits(
@@ -447,7 +266,7 @@ class TdxClient:
         code: str,
         category: KlineCategory,
         start: int,
-        count: int = 800,
+        count: int = BAR_PAGE_SIZE,
     ) -> list[SecurityBar]:
         """获取 K 线数据（最多800条/次，按 start 分页）。"""
         bars = self._execute(GetSecurityBarsCmd(market, code, category, start, count))
@@ -460,7 +279,7 @@ class TdxClient:
         code: str,
         category: KlineCategory,
         start: int,
-        count: int = 800,
+        count: int = BAR_PAGE_SIZE,
     ) -> list[IndexBar]:
         """获取指数 K 线数据。"""
         bars = self._execute(GetIndexBarsCmd(market, code, category, start, count))
@@ -473,10 +292,10 @@ class TdxClient:
         code: str,
         category: KlineCategory,
         start: int,
-        count: int = 800,
+        count: int = BAR_PAGE_SIZE,
     ) -> list[SecurityBar] | list[IndexBar]:
         """按市场与代码自动路由股票或指数 K 线。"""
-        if _looks_like_index(market, code):
+        if is_index(market, code):
             return self.get_index_bars(market, code, category, start, count)
         return self.get_security_bars(market, code, category, start, count)
 
@@ -489,25 +308,12 @@ class TdxClient:
         category: KlineCategory = KlineCategory.DAY,
     ) -> list[SecurityBar] | list[IndexBar]:
         """分页获取日期闭区间内的 K 线，并按时间升序去重返回。"""
-        validate_date(start_date)
-        validate_date(end_date)
-        if start_date > end_date:
-            raise ValueError("start_date 不能晚于 end_date")
-        collected: dict[tuple[int, int, int, int, int], SecurityBar] = {}
-        page_start = 0
-        for _ in range(256):
-            page = self.get_bars(market, code, category, page_start, 800)
-            if not page:
-                break
-            for bar in page:
-                bar_date = _date_from_bar(bar)
-                if start_date <= bar_date <= end_date:
-                    key = (bar.year, bar.month, bar.day, bar.hour, bar.minute)
-                    collected[key] = bar
-            if min(_date_from_bar(bar) for bar in page) <= start_date or len(page) < 800:
-                break
-            page_start += len(page)
-        return [collected[key] for key in sorted(collected)]
+        pages = BarRange(start_date, end_date)
+        for _ in range(MAX_PAGES):
+            page = self.get_bars(market, code, category, pages.start, BAR_PAGE_SIZE)
+            if pages.add(page):
+                return pages.result()
+        raise TdxResponseError("K 线区间超过最大分页数")
 
     # ------------------------------------------------------------------ #
     # 分时
@@ -520,7 +326,7 @@ class TdxClient:
             bars = self.get_history_minute_time_data(market, code, today)
             if bars:
                 return bars
-        except Exception:
+        except (TdxConnectionError, TdxDecodeError, TdxResponseError):
             pass
         if _before_a_share_session(_now_in_shanghai()):
             return []
@@ -541,9 +347,7 @@ class TdxClient:
             raise
         return bars
 
-    def get_history_minute_time_data(
-        self, market: Market, code: str, date: int
-    ) -> list[MinuteBar]:
+    def get_history_minute_time_data(self, market: Market, code: str, date: int) -> list[MinuteBar]:
         """获取历史某日分时数据（date: YYYYMMDD）。"""
         bars = self._execute(GetHistoryMinuteTimeDataCmd(market, code, date))
         _validate_minute_bars(bars, "history_minute_time")
@@ -554,18 +358,16 @@ class TdxClient:
     # ------------------------------------------------------------------ #
 
     def get_transaction_data(
-        self, market: Market, code: str, start: int, count: int = 800
+        self, market: Market, code: str, start: int, count: int = TRANSACTION_PAGE_SIZE
     ) -> list[TransactionRecord]:
         """获取当日逐笔成交（分页）。"""
         return self._execute(GetTransactionDataCmd(market, code, start, count))
 
     def get_history_transaction_data(
-        self, market: Market, code: str, date: int, start: int, count: int = 800
+        self, market: Market, code: str, date: int, start: int, count: int = TRANSACTION_PAGE_SIZE
     ) -> list[TransactionRecord]:
         """获取历史逐笔成交（date: YYYYMMDD，分页）。"""
-        return self._execute(
-            GetHistoryTransactionDataCmd(market, code, date, start, count)
-        )
+        return self._execute(GetHistoryTransactionDataCmd(market, code, date, start, count))
 
     # ------------------------------------------------------------------ #
     # 财务 / 公司
@@ -579,9 +381,7 @@ class TdxClient:
         """获取最新财务数据。"""
         return self._execute(GetFinanceInfoCmd(market, code))
 
-    def get_company_info_category(
-        self, market: Market, code: str
-    ) -> list[CompanyInfoCategory]:
+    def get_company_info_category(self, market: Market, code: str) -> list[CompanyInfoCategory]:
         """获取公司信息文件目录。"""
         return self._execute(GetCompanyInfoCategoryCmd(market, code))
 
@@ -589,9 +389,7 @@ class TdxClient:
         self, market: Market, code: str, filename: str, offset: int, length: int
     ) -> str:
         """读取公司信息文本。"""
-        return self._execute(
-            GetCompanyInfoContentCmd(market, code, filename, offset, length)
-        )
+        return self._execute(GetCompanyInfoContentCmd(market, code, filename, offset, length))
 
     def get_block_info(self, filename: str) -> list[TdxBlock]:
         """获取并解析板块文件（行业、概念、风格等）。
@@ -601,46 +399,23 @@ class TdxClient:
           'block_gn.dat'  - 概念板块
           'block_fg.dat'  - 风格板块
         """
-        size, _hash = self._execute(GetBlockInfoMetaCmd(filename))
-        full_data = bytearray()
-        pos = 0
-        chunk_size = 30000
-        for _ in range(256):
-            if pos >= size:
-                break
-            chunk = self._execute(GetBlockInfoCmd(filename, pos, chunk_size))
-            if not chunk:
-                raise TdxResponseError(f"{filename} 在偏移 {pos} 提前结束")
-            full_data.extend(chunk)
-            pos += len(chunk)
-        if len(full_data) != size:
-            raise TdxResponseError(
-                f"{filename} 长度不符: expected={size}, actual={len(full_data)}"
-            )
-        if len(_hash) == 32 and hashlib.md5(full_data).hexdigest() != _hash.lower():
-            raise TdxResponseError(f"{filename} MD5 校验失败")
-        return parse_block_dat(bytes(full_data), filename)
+        size, digest = self._execute(GetBlockInfoMetaCmd(filename))
+        chunks = FileChunks(filename, size=size, digest=digest)
+        for _ in range(MAX_PAGES):
+            if chunks.complete:
+                return parse_block_dat(chunks.result(), filename)
+            chunk = self._execute(GetBlockInfoCmd(filename, chunks.start, FILE_CHUNK_SIZE))
+            chunks.add(chunk)
+        return parse_block_dat(chunks.result(), filename)
 
     def get_report_file(self, filename: str) -> bytes:
         """从服务器拉取大文件（如 'base_info.zip'）。"""
-        full_data = bytearray()
-        pos = 0
-        chunk_size = 30000
-        previous_chunk: bytes | None = None
-        for _ in range(256):
-            chunk = self._execute(GetReportFileCmd(filename, pos, chunk_size))
-            if not chunk:
-                break
-            if chunk == previous_chunk:
-                raise TdxResponseError(f"{filename} 在偏移 {pos} 返回重复分片")
-            full_data.extend(chunk)
-            pos += len(chunk)
-            if len(chunk) < chunk_size:
-                break
-            previous_chunk = chunk
-        else:
-            raise TdxResponseError(f"{filename} 超过最大分片数 256")
-        return bytes(full_data)
+        chunks = FileChunks(filename)
+        for _ in range(MAX_PAGES):
+            chunk = self._execute(GetReportFileCmd(filename, chunks.start, FILE_CHUNK_SIZE))
+            if chunks.add(chunk):
+                return chunks.result()
+        raise TdxResponseError(f"{filename} 超过最大分片数 {MAX_PAGES}")
 
     def get_market_stat(self) -> MarketStat:
         """获取 A 股全市场涨跌统计概况（基于 880005 行情统计）。
@@ -649,58 +424,19 @@ class TdxClient:
             `suspended_count` 是 `total - up - down - neutral` 的残差估算值，
             用于保证计数守恒，不应视为协议已明确验证的停牌字段。
         """
-        # 通达信中 880005 是全市场行情统计代码
         quotes = self.get_security_quotes([(Market.SH, "880005")])
-        if not quotes:
-            raise RuntimeError("无法获取市场统计数据")
-        q = quotes[0]
-        up = int(q.price)
-        down = int(q.pre_close)
-        neutral = int(q.low)
-        total = int(q.high)
-        return MarketStat(
-            up_count=up,
-            down_count=down,
-            neutral_count=neutral,
-            suspended_count=max(0, total - up - down - neutral),
-            total_count=total,
-            total_amount=q.amount,
-            total_volume=q.vol,
-        )
+        return market_stat_from_quotes(quotes)
 
     def _collect_transaction_records(
         self,
         fetch_page: Callable[[int, int], list[TransactionRecord]],
-        page_size: int = 800,
+        page_size: int = TRANSACTION_PAGE_SIZE,
     ) -> list[TransactionRecord]:
-        all_recs: list[TransactionRecord] = []
-        seen_page_sigs: set[
-            tuple[tuple[int, int, float, int, int, int, int | None], ...]
-        ] = set()
-        start = 0
-
-        while start <= 0xFFFF:
-            recs = fetch_page(start, page_size)
-            if not recs:
-                break
-
-            page_sig = _page_signature(recs)
-            if page_sig in seen_page_sigs:
-                raise TdxResponseError(f"逐笔成交在偏移 {start} 返回重复页面")
-            seen_page_sigs.add(page_sig)
-
-            overlap = _boundary_overlap(all_recs, recs)
-            new_records = recs[:-overlap] if overlap else recs
-            if not new_records:
-                raise TdxResponseError(f"逐笔成交在偏移 {start} 没有产生新记录")
-            all_recs = new_records + all_recs
-
-            next_start = start + len(recs)
-            if next_start > 0xFFFF:
-                raise TdxResponseError("逐笔成交超过协议 uint16 分页范围")
-            start = next_start
-
-        return all_recs
+        pages = TransactionPages()
+        while True:
+            records = fetch_page(pages.start, page_size)
+            if pages.add(records):
+                return pages.records
 
     def get_fund_flow(self, market: Market, code: str) -> FundFlow:
         """获取个股当日资金流向分布（基于 L1 逐笔数据统计）。"""
@@ -718,12 +454,12 @@ class TdxClient:
     ) -> list[HistoricalFundFlow]:
         """获取个股历史日线资金流向序列。
 
-        优先走 Category 22 直连接口；若服务器返回空列表，则自动回退为
+        优先走 Category 22；若返回空列表或出现连接、解码、响应异常，则回退为
         “日 K 线取日期 + 历史逐笔成交重算资金流”的兼容实现。
         """
         try:
             direct = self._execute(GetHistoryFundFlowCmd(market, code, start, count))
-        except Exception:
+        except (TdxConnectionError, TdxDecodeError, TdxResponseError):
             direct = []
         if direct:
             return direct
@@ -768,8 +504,8 @@ class AsyncTdxClient:
     def __init__(
         self,
         host: str = KNOWN_HOSTS[0],
-        port: int = _DEFAULT_PORT,
-        timeout: float = _DEFAULT_TIMEOUT,
+        port: int = DEFAULT_PORT,
+        timeout: float = CLIENT_TIMEOUT,
         auto_reconnect: bool = True,
         heartbeat_interval: float = 60.0,
         fallback_hosts: Sequence[str] = (),
@@ -793,14 +529,14 @@ class AsyncTdxClient:
     async def from_best_host(
         cls,
         hosts: list[str] = KNOWN_HOSTS,
-        port: int = _DEFAULT_PORT,
-        timeout: float = _DEFAULT_TIMEOUT,
+        port: int = DEFAULT_PORT,
+        timeout: float = CLIENT_TIMEOUT,
         ping_timeout: float = 5.0,
         auto_reconnect: bool = True,
         heartbeat_interval: float = 60.0,
         max_attempts: int = 2,
     ) -> "AsyncTdxClient":
-        """测量 hosts 中所有服务器延迟，选最低延迟的建立连接。"""
+        """按延迟配置候选服务器；首次查询或 connect() 时连接。"""
         ranked = await ping_all_async(hosts, port, ping_timeout)
         ordered = [item[0] for item in ranked] or list(hosts)
         if not ordered:
@@ -818,7 +554,7 @@ class AsyncTdxClient:
     @staticmethod
     async def ping_all(
         hosts: list[str] = KNOWN_HOSTS,
-        port: int = _DEFAULT_PORT,
+        port: int = DEFAULT_PORT,
         timeout: float = 5.0,
     ) -> list[tuple[str, float]]:
         """测量多台服务器延迟，返回按延迟排序的 (host, seconds) 列表。"""
@@ -871,7 +607,7 @@ class AsyncTdxClient:
                 await self.get_security_count(Market.SH)
             except asyncio.CancelledError:
                 break
-            except Exception:
+            except (TdxConnectionError, TdxDecodeError, TdxResponseError):
                 # 心跳失败通常意味着连接已断开
                 # 下一次正常的业务请求或下一次心跳会通过 _execute 触发重连
                 pass
@@ -904,55 +640,33 @@ class AsyncTdxClient:
         return await self._execute(GetSecurityListCmd(market, start))
 
     async def get_security_list_all(self) -> list[SecurityInfo]:
-        """获取沪深 A 股完整证券列表，并自动挂载行业信息。
+        """获取沪深 A 股完整证券列表，并尽力挂载行业信息。
 
         注意：
             `Market.BJ` 的证券列表请求长期存在服务器超时问题，当前版本暂不纳入此方法。
-            若需 BJ 名单，应改由 `base_info.zip` 等文件离线解析获得。
         """
         industry_map = {}
         try:
             cfg_data = await self.get_report_file("tdxhy.cfg")
             if cfg_data:
                 industry_map = parse_tdxhy_cfg(cfg_data)
-        except Exception:
+        except (TdxConnectionError, TdxDecodeError, TdxResponseError):
             pass
 
         all_stocks: list[SecurityInfo] = []
-        # 注意：Market.BJ 证券列表请求常年超时，短期降级为仅 SH/SZ；
-        # BJ 列表需解析 base_info.zip 获得（待实现）。
+        # BJ 列表不稳定，当前仅扫描沪深。
         for market in [Market.SH, Market.SZ]:
             count = await self.get_security_count(market)
-            for start in range(0, count, 1000):
+            for start in range(0, count, SECURITY_PAGE_SIZE):
                 stocks = await self.get_security_list(market, start)
-                for s in stocks:
-                    is_a_share = False
-                    if market == Market.SH:
-                        if s.code.startswith(("60", "68")):
-                            is_a_share = True
-                    elif market == Market.SZ:
-                        if s.code.startswith(("00", "30")):
-                            is_a_share = True
-                    
-                    if is_a_share:
-                        if s.code in industry_map:
-                            s.industry_tdx, s.industry_sw = industry_map[s.code]
-                        all_stocks.append(s)
+                all_stocks.extend(filter_a_shares(stocks, market, industry_map))
         return all_stocks
 
-    async def get_security_quotes(
-        self, stocks: list[tuple[Market, str]]
-    ) -> list[SecurityQuote]:
-        if not stocks:
-            raise ValueError("stocks 不能为空")
-        if len(set(stocks)) != len(stocks):
-            raise ValueError("stocks 不能包含重复证券")
+    async def get_security_quotes(self, stocks: list[tuple[Market, str]]) -> list[SecurityQuote]:
         quotes: list[SecurityQuote] = []
-        for start in range(0, len(stocks), 80):
-            batch: list[SecurityQuote] = await self._execute(
-                GetSecurityQuotesCmd(stocks[start:start + 80])
-            )
-            quotes.extend(batch)
+        for batch in quote_batches(stocks):
+            result: list[SecurityQuote] = await self._execute(GetSecurityQuotesCmd(batch))
+            quotes.extend(result)
         return quotes
 
     async def get_price_limits(
@@ -967,7 +681,7 @@ class AsyncTdxClient:
                     market, code, KlineCategory.DAY, 0, no_limit_window_days + 1
                 )
                 listed_days = len(bars)
-            except Exception:
+            except (TdxConnectionError, TdxDecodeError, TdxResponseError):
                 listed_days = None
 
         return compute_price_limits(
@@ -984,11 +698,9 @@ class AsyncTdxClient:
         code: str,
         category: KlineCategory,
         start: int,
-        count: int = 800,
+        count: int = BAR_PAGE_SIZE,
     ) -> list[SecurityBar]:
-        bars = await self._execute(
-            GetSecurityBarsCmd(market, code, category, start, count)
-        )
+        bars = await self._execute(GetSecurityBarsCmd(market, code, category, start, count))
         _validate_bars(bars, "security_bars")
         return bars
 
@@ -998,7 +710,7 @@ class AsyncTdxClient:
         code: str,
         category: KlineCategory,
         start: int,
-        count: int = 800,
+        count: int = BAR_PAGE_SIZE,
     ) -> list[IndexBar]:
         bars = await self._execute(GetIndexBarsCmd(market, code, category, start, count))
         _validate_bars(bars, "index_bars")
@@ -1010,9 +722,9 @@ class AsyncTdxClient:
         code: str,
         category: KlineCategory,
         start: int,
-        count: int = 800,
+        count: int = BAR_PAGE_SIZE,
     ) -> list[SecurityBar] | list[IndexBar]:
-        if _looks_like_index(market, code):
+        if is_index(market, code):
             return await self.get_index_bars(market, code, category, start, count)
         return await self.get_security_bars(market, code, category, start, count)
 
@@ -1024,25 +736,12 @@ class AsyncTdxClient:
         end_date: int,
         category: KlineCategory = KlineCategory.DAY,
     ) -> list[SecurityBar] | list[IndexBar]:
-        validate_date(start_date)
-        validate_date(end_date)
-        if start_date > end_date:
-            raise ValueError("start_date 不能晚于 end_date")
-        collected: dict[tuple[int, int, int, int, int], SecurityBar] = {}
-        page_start = 0
-        for _ in range(256):
-            page = await self.get_bars(market, code, category, page_start, 800)
-            if not page:
-                break
-            for bar in page:
-                bar_date = _date_from_bar(bar)
-                if start_date <= bar_date <= end_date:
-                    key = (bar.year, bar.month, bar.day, bar.hour, bar.minute)
-                    collected[key] = bar
-            if min(_date_from_bar(bar) for bar in page) <= start_date or len(page) < 800:
-                break
-            page_start += len(page)
-        return [collected[key] for key in sorted(collected)]
+        pages = BarRange(start_date, end_date)
+        for _ in range(MAX_PAGES):
+            page = await self.get_bars(market, code, category, pages.start, BAR_PAGE_SIZE)
+            if pages.add(page):
+                return pages.result()
+        raise TdxResponseError("K 线区间超过最大分页数")
 
     async def get_minute_time_data(self, market: Market, code: str) -> list[MinuteBar]:
         today = _today_in_shanghai()
@@ -1050,7 +749,7 @@ class AsyncTdxClient:
             bars = await self.get_history_minute_time_data(market, code, today)
             if bars:
                 return bars
-        except Exception:
+        except (TdxConnectionError, TdxDecodeError, TdxResponseError):
             pass
         if _before_a_share_session(_now_in_shanghai()):
             return []
@@ -1079,16 +778,14 @@ class AsyncTdxClient:
         return bars
 
     async def get_transaction_data(
-        self, market: Market, code: str, start: int, count: int = 800
+        self, market: Market, code: str, start: int, count: int = TRANSACTION_PAGE_SIZE
     ) -> list[TransactionRecord]:
         return await self._execute(GetTransactionDataCmd(market, code, start, count))
 
     async def get_history_transaction_data(
-        self, market: Market, code: str, date: int, start: int, count: int = 800
+        self, market: Market, code: str, date: int, start: int, count: int = TRANSACTION_PAGE_SIZE
     ) -> list[TransactionRecord]:
-        return await self._execute(
-            GetHistoryTransactionDataCmd(market, code, date, start, count)
-        )
+        return await self._execute(GetHistoryTransactionDataCmd(market, code, date, start, count))
 
     async def get_xdxr_info(self, market: Market, code: str) -> list[XdxrRecord]:
         return await self._execute(GetXdxrInfoCmd(market, code))
@@ -1104,52 +801,27 @@ class AsyncTdxClient:
     async def get_company_info_content(
         self, market: Market, code: str, filename: str, offset: int, length: int
     ) -> str:
-        return await self._execute(
-            GetCompanyInfoContentCmd(market, code, filename, offset, length)
-        )
+        return await self._execute(GetCompanyInfoContentCmd(market, code, filename, offset, length))
 
     async def get_block_info(self, filename: str) -> list[TdxBlock]:
         """获取并解析板块文件（行业、概念、风格等）。"""
-        size, _hash = await self._execute(GetBlockInfoMetaCmd(filename))
-        full_data = bytearray()
-        pos = 0
-        chunk_size = 30000
-        for _ in range(256):
-            if pos >= size:
-                break
-            chunk = await self._execute(GetBlockInfoCmd(filename, pos, chunk_size))
-            if not chunk:
-                raise TdxResponseError(f"{filename} 在偏移 {pos} 提前结束")
-            full_data.extend(chunk)
-            pos += len(chunk)
-        if len(full_data) != size:
-            raise TdxResponseError(
-                f"{filename} 长度不符: expected={size}, actual={len(full_data)}"
-            )
-        if len(_hash) == 32 and hashlib.md5(full_data).hexdigest() != _hash.lower():
-            raise TdxResponseError(f"{filename} MD5 校验失败")
-        return parse_block_dat(bytes(full_data), filename)
+        size, digest = await self._execute(GetBlockInfoMetaCmd(filename))
+        chunks = FileChunks(filename, size=size, digest=digest)
+        for _ in range(MAX_PAGES):
+            if chunks.complete:
+                return parse_block_dat(chunks.result(), filename)
+            chunk = await self._execute(GetBlockInfoCmd(filename, chunks.start, FILE_CHUNK_SIZE))
+            chunks.add(chunk)
+        return parse_block_dat(chunks.result(), filename)
 
     async def get_report_file(self, filename: str) -> bytes:
         """从服务器拉取大文件。"""
-        full_data = bytearray()
-        pos = 0
-        chunk_size = 30000
-        previous_chunk: bytes | None = None
-        for _ in range(256):
-            chunk = await self._execute(GetReportFileCmd(filename, pos, chunk_size))
-            if not chunk:
-                break
-            if chunk == previous_chunk:
-                raise TdxResponseError(f"{filename} 在偏移 {pos} 返回重复分片")
-            full_data.extend(chunk)
-            pos += len(chunk)
-            if len(chunk) < chunk_size:
-                break
-            previous_chunk = chunk
-        else:
-            raise TdxResponseError(f"{filename} 超过最大分片数 256")
-        return bytes(full_data)
+        chunks = FileChunks(filename)
+        for _ in range(MAX_PAGES):
+            chunk = await self._execute(GetReportFileCmd(filename, chunks.start, FILE_CHUNK_SIZE))
+            if chunks.add(chunk):
+                return chunks.result()
+        raise TdxResponseError(f"{filename} 超过最大分片数 {MAX_PAGES}")
 
     async def get_market_stat(self) -> MarketStat:
         """获取 A 股全市场涨跌统计概况（基于 880005 行情统计）。
@@ -1158,58 +830,19 @@ class AsyncTdxClient:
             `suspended_count` 是 `total - up - down - neutral` 的残差估算值，
             用于保证计数守恒，不应视为协议已明确验证的停牌字段。
         """
-        # 通达信中 880005 是全市场行情统计代码
         quotes = await self.get_security_quotes([(Market.SH, "880005")])
-        if not quotes:
-            raise RuntimeError("无法获取市场统计数据")
-        q = quotes[0]
-        up = int(q.price)
-        down = int(q.pre_close)
-        neutral = int(q.low)
-        total = int(q.high)
-        return MarketStat(
-            up_count=up,
-            down_count=down,
-            neutral_count=neutral,
-            suspended_count=max(0, total - up - down - neutral),
-            total_count=total,
-            total_amount=q.amount,
-            total_volume=q.vol,
-        )
+        return market_stat_from_quotes(quotes)
 
     async def _collect_transaction_records(
         self,
         fetch_page: Callable[[int, int], Awaitable[list[TransactionRecord]]],
-        page_size: int = 800,
+        page_size: int = TRANSACTION_PAGE_SIZE,
     ) -> list[TransactionRecord]:
-        all_recs: list[TransactionRecord] = []
-        seen_page_sigs: set[
-            tuple[tuple[int, int, float, int, int, int, int | None], ...]
-        ] = set()
-        start = 0
-
-        while start <= 0xFFFF:
-            recs = await fetch_page(start, page_size)
-            if not recs:
-                break
-
-            page_sig = _page_signature(recs)
-            if page_sig in seen_page_sigs:
-                raise TdxResponseError(f"逐笔成交在偏移 {start} 返回重复页面")
-            seen_page_sigs.add(page_sig)
-
-            overlap = _boundary_overlap(all_recs, recs)
-            new_records = recs[:-overlap] if overlap else recs
-            if not new_records:
-                raise TdxResponseError(f"逐笔成交在偏移 {start} 没有产生新记录")
-            all_recs = new_records + all_recs
-
-            next_start = start + len(recs)
-            if next_start > 0xFFFF:
-                raise TdxResponseError("逐笔成交超过协议 uint16 分页范围")
-            start = next_start
-
-        return all_recs
+        pages = TransactionPages()
+        while True:
+            records = await fetch_page(pages.start, page_size)
+            if pages.add(records):
+                return pages.records
 
     async def get_fund_flow(self, market: Market, code: str) -> FundFlow:
         """获取个股当日资金流向分布（基于 L1 逐笔数据统计）。"""
@@ -1217,9 +850,7 @@ class AsyncTdxClient:
         if not quotes:
             raise TdxResponseError(f"无法获取 {market.name}:{code} 行情以校验资金流完整性")
         records = await self._collect_transaction_records(
-            lambda start, page_size: self.get_transaction_data(
-                market, code, start, page_size
-            ),
+            lambda start, page_size: self.get_transaction_data(market, code, start, page_size),
         )
         _validate_fund_flow_coverage(records, quotes[0])
         return _classify_fund_flow(records)
@@ -1229,12 +860,12 @@ class AsyncTdxClient:
     ) -> list[HistoricalFundFlow]:
         """获取个股历史日线资金流向序列。
 
-        优先走 Category 22 直连接口；若服务器返回空列表，则自动回退为
+        优先走 Category 22；若返回空列表或出现连接、解码、响应异常，则回退为
         “日 K 线取日期 + 历史逐笔成交重算资金流”的兼容实现。
         """
         try:
             direct = await self._execute(GetHistoryFundFlowCmd(market, code, start, count))
-        except Exception:
+        except (TdxConnectionError, TdxDecodeError, TdxResponseError):
             direct = []
         if direct:
             return direct
@@ -1245,9 +876,7 @@ class AsyncTdxClient:
             date = _date_from_bar(bar)
             if date == _today_in_shanghai():
                 results.append(
-                    _historical_fund_flow_from_flow(
-                        date, await self.get_fund_flow(market, code)
-                    )
+                    _historical_fund_flow_from_flow(date, await self.get_fund_flow(market, code))
                 )
                 continue
             records = await self._collect_transaction_records(

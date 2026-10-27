@@ -5,6 +5,7 @@ from abc import abstractmethod
 from typing import Generic, TypeVar
 
 from .._binary import unpack_from
+from .._config import BAR_PAGE_SIZE
 from ..codec.datetime_ import get_datetime
 from ..codec.price import get_price
 from ..codec.volume import get_volume
@@ -29,7 +30,7 @@ class _GetBarsCmd(BaseCommand[list[_BarT]], Generic[_BarT]):
         self.code = validate_code(code).encode("ascii")
         self.category = category
         self.start = validate_uint16(start, "start")
-        self.count = validate_count(count, 800)
+        self.count = validate_count(count, BAR_PAGE_SIZE)
 
     def build_request(self) -> bytes:
         return struct.pack(

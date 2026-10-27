@@ -5,6 +5,7 @@
 
 import struct
 
+from .._config import FILE_CHUNK_SIZE
 from ..exceptions import TdxDecodeError
 from ..validation import validate_filename
 from .base import BaseCommand
@@ -48,7 +49,7 @@ class GetBlockInfoCmd(BaseCommand[bytes]):
         self.filename = validate_filename(filename, 100, "ascii")
         if start < 0:
             raise ValueError("start 不能为负")
-        if not 1 <= length <= 30000:
+        if not 1 <= length <= FILE_CHUNK_SIZE:
             raise ValueError("length 必须在 1..30000 范围内")
         self.start = start
         self.length = length

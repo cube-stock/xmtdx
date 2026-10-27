@@ -4,6 +4,7 @@ import asyncio
 from types import TracebackType
 from typing import TYPE_CHECKING, TypeVar
 
+from .._config import CONNECTION_TIMEOUT, DEFAULT_PORT, KNOWN_HOSTS
 from ..codec.frame import HEADER_SIZE, decompress_body, parse_header
 from ..commands.setup import SETUP_COMMANDS
 from ..exceptions import TdxConnectionError, TdxError
@@ -14,14 +15,10 @@ if TYPE_CHECKING:
 
 T = TypeVar("T")
 
-_DEFAULT_HOST = "180.153.18.170"
-_DEFAULT_PORT = 7709
-_DEFAULT_TIMEOUT = 15.0
-
 
 async def ping_host_async(
     host: str,
-    port: int = _DEFAULT_PORT,
+    port: int = DEFAULT_PORT,
     timeout: float = 5.0,
 ) -> float | None:
     """异步验证完整握手和证券数量查询，返回端到端延迟。"""
@@ -41,7 +38,7 @@ async def ping_host_async(
 
 async def ping_all_async(
     hosts: list[str],
-    port: int = _DEFAULT_PORT,
+    port: int = DEFAULT_PORT,
     timeout: float = 5.0,
 ) -> list[tuple[str, float]]:
     """并发验证异步行情主机，返回按端到端延迟排序的结果。"""
@@ -67,9 +64,9 @@ class AsyncTdxConnection:
 
     def __init__(
         self,
-        host: str = _DEFAULT_HOST,
-        port: int = _DEFAULT_PORT,
-        timeout: float = _DEFAULT_TIMEOUT,
+        host: str = KNOWN_HOSTS[0],
+        port: int = DEFAULT_PORT,
+        timeout: float = CONNECTION_TIMEOUT,
     ) -> None:
         self.host = host
         self.port = port

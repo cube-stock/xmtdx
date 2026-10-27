@@ -3,6 +3,7 @@
 import struct
 
 from .._binary import slice_bytes, unpack_from
+from .._config import BAR_PAGE_SIZE
 from ..codec.volume import _decode_volume
 from ..exceptions import TdxDecodeError
 from ..models.enums import Market
@@ -18,7 +19,7 @@ class GetHistoryFundFlowCmd(BaseCommand[list[HistoricalFundFlow]]):
         self.market = market
         self.code = validate_code(code).encode("ascii")
         self.start = validate_uint16(start, "start")
-        self.count = validate_count(count, 800)
+        self.count = validate_count(count, BAR_PAGE_SIZE)
 
     def build_request(self) -> bytes:
         # Header (12 bytes) + Payload (28 bytes) = 40 bytes
@@ -44,36 +45,40 @@ class GetHistoryFundFlowCmd(BaseCommand[list[HistoricalFundFlow]]):
         # 响应格式：9字节头 + 2字节数量 + 每条记录 36 字节
         if len(body) < 11:
             return []
-            
+
         (num,) = unpack_from("<H", body, 9, "history_fund_flow header")
         pos = 11
         results = []
-        
+
         for _ in range(num):
             # 记录格式：4字节日期 + 8个4字节自定义浮点金额
             # [0]日期, [1..4]流入(超/大/中/小), [5..8]流出(超/大/中/小)
             raw = slice_bytes(body, pos, 36, "history_fund_flow record")
             raw_data = struct.unpack("<IIIIIIIII", raw)
-            
+
             raw_date = raw_data[0]
             year = raw_date // 10000
             month = (raw_date // 100) % 100
             day = raw_date % 100
             if not (1990 <= year <= 2100 and 1 <= month <= 12 and 1 <= day <= 31):
                 raise TdxDecodeError(f"history_fund_flow 非法日期: {raw_date}")
-            
-            results.append(HistoricalFundFlow(
-                year=year, month=month, day=day,
-                super_in=_decode_volume(raw_data[1]),
-                large_in=_decode_volume(raw_data[2]),
-                medium_in=_decode_volume(raw_data[3]),
-                small_in=_decode_volume(raw_data[4]),
-                super_out=_decode_volume(raw_data[5]),
-                large_out=_decode_volume(raw_data[6]),
-                medium_out=_decode_volume(raw_data[7]),
-                small_out=_decode_volume(raw_data[8]),
-                _raw=raw,
-            ))
+
+            results.append(
+                HistoricalFundFlow(
+                    year=year,
+                    month=month,
+                    day=day,
+                    super_in=_decode_volume(raw_data[1]),
+                    large_in=_decode_volume(raw_data[2]),
+                    medium_in=_decode_volume(raw_data[3]),
+                    small_in=_decode_volume(raw_data[4]),
+                    super_out=_decode_volume(raw_data[5]),
+                    large_out=_decode_volume(raw_data[6]),
+                    medium_out=_decode_volume(raw_data[7]),
+                    small_out=_decode_volume(raw_data[8]),
+                    _raw=raw,
+                )
+            )
             pos += 36
-            
+
         return results

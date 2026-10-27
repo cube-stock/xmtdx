@@ -1,0 +1,25 @@
+"""连接默认配置与协议分页上限。"""
+
+DEFAULT_PORT = 7709
+CLIENT_TIMEOUT = 5.0
+CONNECTION_TIMEOUT = 15.0
+QUOTE_PAGE_SIZE = 80
+BAR_PAGE_SIZE = 800
+TRANSACTION_PAGE_SIZE = 800
+SECURITY_PAGE_SIZE = 1000
+FILE_CHUNK_SIZE = 30000
+MAX_PAGES = 256
+
+# 内置候选（可用性需运行时验证）的通达信行情服务器（按优先级排序）
+KNOWN_HOSTS: list[str] = [
+    "180.153.18.170",
+    "124.71.187.122",
+    "180.153.18.171",
+    "180.153.18.172",
+    "119.147.212.81",
+    "115.238.56.198",
+    "115.238.90.165",
+    "218.75.126.9",
+    "47.107.75.159",
+    "59.175.238.38",
+]
