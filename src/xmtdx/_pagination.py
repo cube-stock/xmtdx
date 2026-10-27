@@ -4,10 +4,10 @@ import hashlib
 from collections.abc import Sequence
 
 from ._client_logic import _date_from_bar
-from ._config import BAR_PAGE_SIZE, FILE_CHUNK_SIZE
+from ._config import BAR_PAGE_SIZE, FILE_CHUNK_SIZE, SECURITY_PAGE_SIZE
 from .exceptions import TdxResponseError
-from .models import SecurityBar, TransactionRecord
-from .validation import validate_date
+from .models import Market, SecurityBar, SecurityInfo, TransactionRecord
+from .validation import validate_code, validate_date
 
 
 def _record_signature(
@@ -136,3 +136,41 @@ class FileChunks:
         if len(self.digest) == 32 and hashlib.md5(self._data).hexdigest() != self.digest.lower():
             raise TdxResponseError(f"{self.filename} MD5 校验失败")
         return bytes(self._data)
+
+
+class SecurityListPages:
+    """以实际页长推进，按服务器声明的证券总数验证完整性。"""
+
+    def __init__(self, market: Market, count: int) -> None:
+        if isinstance(count, bool) or not isinstance(count, int) or not 0 <= count <= 0xFFFF:
+            raise TdxResponseError("证券总数超出协议范围")
+        self.market = market
+        self.count = count
+        self.start = 0
+        self._seen: set[str] = set()
+
+    @property
+    def complete(self) -> bool:
+        return self.start == self.count
+
+    def add(self, records: list[SecurityInfo]) -> None:
+        if (
+            not records
+            or len(records) > SECURITY_PAGE_SIZE
+            or self.start + len(records) > self.count
+        ):
+            raise TdxResponseError(
+                f"{self.market.name} 证券列表在偏移 {self.start} 长度不符或提前结束"
+            )
+        codes = [record.code for record in records]
+        for record in records:
+            if record.market != self.market:
+                raise TdxResponseError("证券列表响应市场不匹配")
+            try:
+                validate_code(record.code)
+            except ValueError as error:
+                raise TdxResponseError("证券列表响应代码非法") from error
+        if len(set(codes)) != len(codes) or self._seen.intersection(codes):
+            raise TdxResponseError(f"{self.market.name} 证券列表在偏移 {self.start} 重复停滞")
+        self._seen.update(codes)
+        self.start += len(records)

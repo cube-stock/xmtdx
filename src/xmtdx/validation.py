@@ -1,5 +1,6 @@
 """公开协议参数的集中校验。"""
 
+import math
 from datetime import datetime
 
 
@@ -39,3 +40,21 @@ def validate_filename(filename: str, maximum_bytes: int, encoding: str) -> bytes
     if len(encoded) > maximum_bytes:
         raise ValueError(f"filename 编码后不能超过 {maximum_bytes} 字节")
     return encoded
+
+
+def validate_timeout(timeout: float) -> float:
+    if isinstance(timeout, bool) or not math.isfinite(timeout) or timeout <= 0:
+        raise ValueError("timeout 必须为有限正数")
+    return timeout
+
+
+def validate_port(port: int) -> int:
+    if isinstance(port, bool) or not isinstance(port, int) or not 1 <= port <= 65535:
+        raise ValueError("port 必须为 1..65535 的整数")
+    return port
+
+
+def validate_attempts(value: int) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ValueError("max_attempts 必须为正整数")
+    return value

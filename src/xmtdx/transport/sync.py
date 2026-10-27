@@ -10,6 +10,7 @@ from .._config import KNOWN_HOSTS as KNOWN_HOSTS
 from ..codec.frame import HEADER_SIZE, decompress_body, parse_header
 from ..commands.setup import SETUP_COMMANDS
 from ..exceptions import TdxConnectionError, TdxError
+from ..validation import validate_port, validate_timeout
 from .capture import CapturedResponse
 
 if TYPE_CHECKING:
@@ -26,6 +27,8 @@ def ping_host(
 
     返回延迟（秒），连接失败时返回 None。
     """
+    validate_port(port)
+    validate_timeout(timeout)
     from ..commands.security_count import GetSecurityCountCmd
     from ..models.enums import Market
 
@@ -50,6 +53,8 @@ def ping_all(
     """
     import concurrent.futures
 
+    validate_port(port)
+    validate_timeout(timeout)
     if not hosts:
         return []
     results: list[tuple[str, float]] = []
@@ -90,8 +95,8 @@ class TdxConnection:
         timeout: float = CONNECTION_TIMEOUT,
     ) -> None:
         self.host = host
-        self.port = port
-        self.timeout = timeout
+        self.port = validate_port(port)
+        self.timeout = validate_timeout(timeout)
         self._sock: socket.socket | None = None
 
     def connect(self) -> None:

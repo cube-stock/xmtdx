@@ -1,5 +1,7 @@
 """A 股价格限制规则引擎。"""
 
+import math
+
 from ..models.enums import Market
 from .security import is_index
 
@@ -45,7 +47,14 @@ def compute_price_limits(
         listed_days:
             已上市交易天数（按交易日计，首日=1）。
             若提供该值，函数会按上市初期无涨跌幅限制规则优先返回 ``(None, None)``。
+            未提供时只计算常规板块规则，不确认上市状态。
     """
+    if not math.isfinite(pre_close):
+        raise ValueError("pre_close 必须为有限数值")
+    if listed_days is not None and (
+        isinstance(listed_days, bool) or not isinstance(listed_days, int) or listed_days < 1
+    ):
+        raise ValueError("listed_days 必须为正整数")
     if pre_close <= 0:
         return None, None
 

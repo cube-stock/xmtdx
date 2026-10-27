@@ -13,7 +13,7 @@ from xmtdx.commands.finance_info import GetFinanceInfoCmd
 from xmtdx.commands.security_bars import GetIndexBarsCmd
 from xmtdx.commands.security_quotes import GetSecurityQuotesCmd
 from xmtdx.commands.transaction import GetTransactionDataCmd
-from xmtdx.exceptions import TdxResponseError
+from xmtdx.exceptions import TdxDecodeError, TdxResponseError
 from xmtdx.models.bar import IndexBar
 from xmtdx.validation import validate_code, validate_date, validate_filename
 
@@ -113,7 +113,9 @@ def test_file_chunk_protocol_and_boundaries(command_name):
     assert struct.unpack_from("<II", request, 12) == (30000, 128)
     assert request[20:].rstrip(b"\x00") == b"tdxhy.cfg"
     assert command.parse_response(b"\x00" * 4 + b"payload") == b"payload"
-    assert command.parse_response(b"\x00" * 3) == b""
+    assert command.parse_response(b"") == b""
+    with pytest.raises(TdxDecodeError):
+        command.parse_response(b"\x00" * 3)
     with pytest.raises(ValueError, match="length"):
         command_class("tdxhy.cfg", 0, 30001)
     with pytest.raises(ValueError, match="start"):

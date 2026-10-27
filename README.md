@@ -2,7 +2,7 @@
 
 通达信私有 7709/TCP 行情协议的 A 股客户端实现，零运行时依赖。协议并无官方公开规范，字段与命令来自兼容实现、抓包和真实服务器交叉验证，因此属于兼容性逆向开发，不包含通达信客户端代码。
 
-当前源码版本：**0.3.0**。
+当前源码版本：**0.3.1**。
 
 ## 特性
 
@@ -85,7 +85,11 @@ client = await AsyncTdxClient.from_best_host(ping_timeout=5.0)
 
 `from_best_host()` 会把测速可达的主机配置为候选列表，但单次调用最多尝试
 `max_attempts` 台（默认 2 台）。直接使用 `TdxClient(host)` 且不传
-`fallback_hosts` 时，重连仍是同一台主机。
+`fallback_hosts` 时，重连仍是同一台主机。显式 `connect()`、上下文管理器与查询
+遵循相同的重试配置。异步请求取消会关闭受影响连接并传播取消异常。
+
+测速通过仅表示握手及证券数量查询成功，不保证行情、K 线等全部能力可用。
+本次直连抽查中行情为空、K 线返回短包，详见 [在线验证记录](docs/protocol-coverage.md#本次在线验证2026-10-27)。
 
 
 ## API
@@ -99,7 +103,7 @@ client = await AsyncTdxClient.from_best_host(ping_timeout=5.0)
 | `get_security_list_all()` | 沪深 A 股列表（尽力挂载行业信息；BJ 暂未纳入） |
 | `get_market_stat()` | 全市场 A 股涨跌统计（家数、成交额） |
 | `get_security_quotes([(market, code), ...])` | 批量实时五档行情（任意数量，内部每 80 只分片） |
-| `get_price_limits(market, code, name, pre_close)` | 计算当前涨跌停价（自动处理上市初期无涨跌幅限制） |
+| `get_price_limits(market, code, name, pre_close)` | 计算当前涨跌停价（日线不足以确认上市状态时返回 None） |
 | `get_security_bars(market, code, category, start, count=800)` | K 线（股票） |
 | `get_index_bars(market, code, category, start, count=800)` | K 线（指数） |
 | `get_bars(market, code, category, start, count=800)` | 按代码自动路由股票/指数 K 线 |
@@ -135,6 +139,8 @@ DAY  DAY_ALT  WEEK  MONTH  SEASON  YEAR
 - `xmtdx` 当前不能稳定获取 BJ 证券列表；`get_security_count(Market.BJ)` 可用，但 `get_security_list(Market.BJ, start)` 经常超时，因此 `get_security_list_all()` 暂不纳入 BJ。
 - 公共服务器的逐笔单页按 800 条使用；若返回重复页、分页范围耗尽或逐笔量低于查询前的行情快照成交量，资金流接口会抛出 `TdxResponseError`，不会返回已知不完整的统计。
 - `get_history_fund_flow()` 的 Category 22 在空回包或连接、解码、响应异常时回退，需要历史逐笔数据；服务器对过去交易日返回空数据时会报错，不会把“缺数据”伪装成全零资金流。
+- 今日分时在周末、开盘前返回空；其余时间需要最新日线确认日期，并以行情参考价交叉校验。缺少必要日线或行情会报错。
+- 历史资金流回退会将逐笔的手换算为股，校验对应日线成交量；证券全集会检查未过滤列表的数量和重复情况，拒绝返回已知不完整结果。
 - 心跳、重连和候选服务器只能提高可用性，不构成生产环境 SLA；公共服务器地址及行为可能随时变化。
 
 ## 数据与单位
@@ -162,7 +168,8 @@ DAY  DAY_ALT  WEEK  MONTH  SEASON  YEAR
 `compute_price_limits(..., listed_days=...)` 明确传入。规则实现见
 `src/xmtdx/codec/price_rules.py`，规则变化应单独验证。
 
-从 0.2.x 升级请阅读 [0.3.0 迁移说明](docs/migration-0.3.md)。
+从 0.2.x 升级请阅读 [0.3.0 迁移说明](docs/migration-0.3.md)，本次更严格的校验行为见
+[0.3.1 变更说明](docs/changes-0.3.1.md)。
 
 ## 使用边界
 
@@ -201,7 +208,7 @@ python -m pytest tests/unit --cov=xmtdx --cov-report=term-missing --cov-fail-und
 # 集成测试（需要网络，默认跳过）
 XMTDX_LIVE=1 python -m pytest tests/integration/
 
-# 较完整的在线能力矩阵（JSON 输出）
+# 在线能力矩阵（自动移除进程代理变量，JSON 输出）
 python scripts/validate_live.py --json
 
 # 未知字段探测脚本
@@ -228,3 +235,8 @@ python -m build
 - **价格缩放**：行情、分时、逐笔通常除以 100；K 线除以 1000，按各命令处理差分基准
 
 各命令的支持和验证状态见 [协议覆盖矩阵](docs/protocol-coverage.md)。在线行情会受交易时段、服务器版本、标的停牌和服务器临时故障影响；“解析已覆盖”不等于任何时刻每台公共服务器都可用。
+
+在线工具使用原生 TCP，记录初始连接对端与目标路由，不修改系统代理或 VPN 配置。
+发现 VPN/TUN 路由时停止直连验证；无法读取路由时明确标记尚未验证直连。
+JSON 中的 `status` 区分 `pass`、`fail`、`warn`、`skipped`，只有 `pass` 的 `ok` 为真。
+必需查询失败会返回非零退出码；金额覆盖率警告不代替成交量完整性校验。

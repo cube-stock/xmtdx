@@ -174,13 +174,38 @@ def market_stat_from_quotes(quotes: list[SecurityQuote]) -> MarketStat:
     if not quotes:
         raise TdxResponseError("无法获取市场统计数据")
     quote = quotes[0]
-    up, down, neutral, total = map(int, (quote.price, quote.pre_close, quote.low, quote.high))
+    counts = (quote.price, quote.pre_close, quote.low, quote.high)
+    if any(not math.isfinite(value) or value < 0 or int(value) != value for value in counts):
+        raise TdxResponseError("市场统计包含非法计数")
+    if any(not math.isfinite(value) or value < 0 for value in (quote.amount, quote.vol)):
+        raise TdxResponseError("市场统计包含非法量额")
+    up, down, neutral, total = map(int, counts)
+    if up + down + neutral > total:
+        raise TdxResponseError("市场统计计数不守恒")
     return MarketStat(
         up_count=up,
         down_count=down,
         neutral_count=neutral,
-        suspended_count=max(0, total - up - down - neutral),
+        suspended_count=total - up - down - neutral,
         total_count=total,
         total_amount=quote.amount,
         total_volume=quote.vol,
     )
+
+
+def validate_history_volume(records: list[TransactionRecord], bar: SecurityBar) -> None:
+    """逐笔单位为手，股票日线成交量为股，允许一手舍入差。"""
+    shares = sum(record.vol for record in records) * 100
+    if shares + 100 < bar.vol:
+        raise TdxResponseError(
+            f"历史逐笔成交覆盖不完整: transaction_shares={shares}, daily_shares={bar.vol}"
+        )
+
+
+def minute_reference(quotes: list[SecurityQuote]) -> float:
+    if not quotes:
+        raise TdxResponseError("无法取得今日分时参考行情")
+    price = quotes[0].pre_close or quotes[0].price
+    if not math.isfinite(price) or price <= 0:
+        raise TdxResponseError("今日分时参考价格非法")
+    return price

@@ -72,6 +72,10 @@ XMTDX_LIVE=1 python -m pytest tests/integration/
 python scripts/validate_live.py --json
 ```
 
+在线行情测试必须移除进程中的 HTTP/HTTPS/ALL/SOCKS 等代理变量，并检查目标路由。
+`validate_live.py` 自动处理该步骤；其他测试入口需显式清除代理环境。若路由经过 VPN/TUN，
+先使目标直连；无法确认时不得把结果描述为已验证直连。不要自动修改系统代理或 VPN 设置。
+
 集成测试可通过 `XMTDX_HOST` 指定服务器。在线验证结果受服务器和交易时段影响，应区分网络故障、服务端限制与实现错误；不得仅凭一次在线成功替代离线回归。
 
 ## 变更与交付

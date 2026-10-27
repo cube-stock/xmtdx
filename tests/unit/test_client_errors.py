@@ -2,8 +2,11 @@
 
 import asyncio
 import inspect
+from contextlib import ExitStack
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -41,11 +44,21 @@ def bar(day=20):
     ],
 )
 def test_program_errors_are_not_swallowed(client, error, method, args, dependency):
-    with (
-        patch.object(client, dependency, side_effect=error("bug")),
-        pytest.raises(error, match="bug"),
-    ):
-        asyncio.run(invoke(client, method, *args))
+    with ExitStack() as stack:
+        if method == "get_minute_time_data":
+            stack.enter_context(patch("xmtdx.client._today_in_shanghai", return_value=20260120))
+            stack.enter_context(
+                patch(
+                    "xmtdx.client._now_in_shanghai",
+                    return_value=datetime(2026, 1, 20, 10, tzinfo=ZoneInfo("Asia/Shanghai")),
+                )
+            )
+            stack.enter_context(patch.object(client, "get_security_bars", return_value=[bar()]))
+        with (
+            patch.object(client, dependency, side_effect=error("bug")),
+            pytest.raises(error, match="bug"),
+        ):
+            asyncio.run(invoke(client, method, *args))
 
 
 @pytest.mark.parametrize("error", [TdxConnectionError, TdxDecodeError, TdxResponseError])
@@ -84,7 +97,7 @@ def test_missing_industry_is_optional(client):
 
 def test_missing_market_statistics_uses_response_error(client):
     with (
-        patch.object(client, "get_security_quotes", return_value=[]),
+        patch.object(client, "_execute", return_value=[]),
         pytest.raises(TdxResponseError, match="市场统计"),
     ):
         asyncio.run(invoke(client, "get_market_stat"))

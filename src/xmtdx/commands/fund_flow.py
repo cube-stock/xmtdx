@@ -1,6 +1,7 @@
 """历史资金流向命令 (Category 22)。"""
 
 import struct
+from datetime import datetime
 
 from .._binary import slice_bytes, unpack_from
 from .._config import BAR_PAGE_SIZE
@@ -43,8 +44,10 @@ class GetHistoryFundFlowCmd(BaseCommand[list[HistoricalFundFlow]]):
 
     def parse_response(self, body: bytes) -> list[HistoricalFundFlow]:
         # 响应格式：9字节头 + 2字节数量 + 每条记录 36 字节
-        if len(body) < 11:
+        if not body:
             return []
+        if len(body) < 11:
+            raise TdxDecodeError("history_fund_flow header 过短")
 
         (num,) = unpack_from("<H", body, 9, "history_fund_flow header")
         pos = 11
@@ -60,7 +63,11 @@ class GetHistoryFundFlowCmd(BaseCommand[list[HistoricalFundFlow]]):
             year = raw_date // 10000
             month = (raw_date // 100) % 100
             day = raw_date % 100
-            if not (1990 <= year <= 2100 and 1 <= month <= 12 and 1 <= day <= 31):
+            try:
+                datetime(year, month, day)
+            except ValueError as error:
+                raise TdxDecodeError(f"history_fund_flow 非法日期: {raw_date}") from error
+            if not 1990 <= year <= 2100:
                 raise TdxDecodeError(f"history_fund_flow 非法日期: {raw_date}")
 
             results.append(

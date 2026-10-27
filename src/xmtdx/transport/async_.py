@@ -8,6 +8,7 @@ from .._config import CONNECTION_TIMEOUT, DEFAULT_PORT, KNOWN_HOSTS
 from ..codec.frame import HEADER_SIZE, decompress_body, parse_header
 from ..commands.setup import SETUP_COMMANDS
 from ..exceptions import TdxConnectionError, TdxError
+from ..validation import validate_port, validate_timeout
 from .capture import CapturedResponse
 
 if TYPE_CHECKING:
@@ -22,6 +23,8 @@ async def ping_host_async(
     timeout: float = 5.0,
 ) -> float | None:
     """异步验证完整握手和证券数量查询，返回端到端延迟。"""
+    validate_port(port)
+    validate_timeout(timeout)
     from ..commands.security_count import GetSecurityCountCmd
     from ..models.enums import Market
 
@@ -42,9 +45,9 @@ async def ping_all_async(
     timeout: float = 5.0,
 ) -> list[tuple[str, float]]:
     """并发验证异步行情主机，返回按端到端延迟排序的结果。"""
-    latencies = await asyncio.gather(
-        *(ping_host_async(host, port, timeout) for host in hosts)
-    )
+    validate_port(port)
+    validate_timeout(timeout)
+    latencies = await asyncio.gather(*(ping_host_async(host, port, timeout) for host in hosts))
     results = [
         (host, latency)
         for host, latency in zip(hosts, latencies, strict=True)
@@ -69,8 +72,8 @@ class AsyncTdxConnection:
         timeout: float = CONNECTION_TIMEOUT,
     ) -> None:
         self.host = host
-        self.port = port
-        self.timeout = timeout
+        self.port = validate_port(port)
+        self.timeout = validate_timeout(timeout)
         self._reader: asyncio.StreamReader | None = None
         self._writer: asyncio.StreamWriter | None = None
         # 单连接不支持请求复用；所有 IO 在连接内串行执行。
@@ -111,6 +114,12 @@ class AsyncTdxConnection:
                 header_buf = await self._recv_exact(HEADER_SIZE)
                 header = parse_header(header_buf)
                 raw_body = await self._recv_exact(header.zipsize)
+            except asyncio.CancelledError:
+                await self._close_unlocked()
+                raise
+            except TdxError:
+                await self._close_unlocked()
+                raise
             except asyncio.TimeoutError as e:
                 await self._close_unlocked()
                 raise TdxConnectionError(f"通信超时: {self.timeout}s") from e
@@ -140,24 +149,27 @@ class AsyncTdxConnection:
         self._writer = writer
         try:
             await self._send_setup()
-        except TdxError:
+        except (TdxError, asyncio.CancelledError):
             await self._close_unlocked()
             raise
         except (OSError, asyncio.TimeoutError, asyncio.IncompleteReadError) as error:
             await self._close_unlocked()
-            raise TdxConnectionError(
-                f"握手失败 {self.host}:{self.port}: {error}"
-            ) from error
+            raise TdxConnectionError(f"握手失败 {self.host}:{self.port}: {error}") from error
 
     async def _close_unlocked(self) -> None:
-        if self._writer is not None:
-            try:
-                self._writer.close()
-                await self._writer.wait_closed()
-            except OSError:
-                pass
-            self._reader = None
-            self._writer = None
+        writer = self._writer
+        self._reader = None
+        self._writer = None
+        if writer is None:
+            return
+        try:
+            writer.close()
+            await asyncio.wait_for(writer.wait_closed(), timeout=self.timeout)
+        except (OSError, asyncio.TimeoutError):
+            writer.transport.abort()
+        except asyncio.CancelledError:
+            writer.transport.abort()
+            raise
 
     # ------------------------------------------------------------------ #
     # context manager

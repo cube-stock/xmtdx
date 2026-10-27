@@ -62,6 +62,8 @@ class GetBlockInfoCmd(BaseCommand[bytes]):
         return header + payload
 
     def parse_response(self, body: bytes) -> bytes:
-        if len(body) < 4:
+        if not body:
             return b""
+        if len(body) < 4:
+            raise TdxDecodeError("file_chunk header 过短")
         return body[4:]
