@@ -30,7 +30,10 @@ class SecurityBar:
 
 @dataclass
 class IndexBar(SecurityBar):
-    """指数 K 线；协议在普通 K 线尾部额外携带涨跌家数。"""
+    """指数 K 线；尾部额外携带涨跌家数。
+
+    vol 保留服务器指数成交量口径，未按股票日线归一化为股。
+    """
 
     up_count: int = 0
     down_count: int = 0

@@ -98,8 +98,7 @@ class GetSecurityQuotesCmd(BaseCommand[list[SecurityQuote]]):
             vol, pos = get_price(body, pos)
             cur_vol, pos = get_price(body, pos)
 
-            amount, _ = get_volume(body, pos)
-            pos += 4
+            amount, pos = get_volume(body, pos)
 
             s_vol, pos = get_price(body, pos)
             b_vol, pos = get_price(body, pos)
@@ -107,31 +106,16 @@ class GetSecurityQuotesCmd(BaseCommand[list[SecurityQuote]]):
             unknown_2, pos = get_price(body, pos)
             unknown_3, pos = get_price(body, pos)
 
-            # 五档买盘
-            bid1_d, pos = get_price(body, pos)
-            ask1_d, pos = get_price(body, pos)
-            bv1, pos = get_price(body, pos)
-            av1, pos = get_price(body, pos)
-
-            bid2_d, pos = get_price(body, pos)
-            ask2_d, pos = get_price(body, pos)
-            bv2, pos = get_price(body, pos)
-            av2, pos = get_price(body, pos)
-
-            bid3_d, pos = get_price(body, pos)
-            ask3_d, pos = get_price(body, pos)
-            bv3, pos = get_price(body, pos)
-            av3, pos = get_price(body, pos)
-
-            bid4_d, pos = get_price(body, pos)
-            ask4_d, pos = get_price(body, pos)
-            bv4, pos = get_price(body, pos)
-            av4, pos = get_price(body, pos)
-
-            bid5_d, pos = get_price(body, pos)
-            ask5_d, pos = get_price(body, pos)
-            bv5, pos = get_price(body, pos)
-            av5, pos = get_price(body, pos)
+            # 每档依次为买价差、卖价差、买量、卖量。
+            bids: list[tuple[float, float]] = []
+            asks: list[tuple[float, float]] = []
+            for _ in range(5):
+                bid_diff, pos = get_price(body, pos)
+                ask_diff, pos = get_price(body, pos)
+                bid_volume, pos = get_price(body, pos)
+                ask_volume, pos = get_price(body, pos)
+                bids.append(((price_raw + bid_diff) / 100.0, float(bid_volume)))
+                asks.append(((price_raw + ask_diff) / 100.0, float(ask_volume)))
 
             # 尾部：2字节 H + 4个 get_price + 2字节 h + 2字节 H
             (unknown_4,) = unpack_from("<H", body, pos, "security_quotes tail flag")
@@ -171,26 +155,26 @@ class GetSecurityQuotesCmd(BaseCommand[list[SecurityQuote]]):
                     b_vol=float(b_vol),
                     active1=active1,
                     active2=active2,
-                    bid1=(price_raw + bid1_d) / 100.0,
-                    bid_vol1=float(bv1),
-                    bid2=(price_raw + bid2_d) / 100.0,
-                    bid_vol2=float(bv2),
-                    bid3=(price_raw + bid3_d) / 100.0,
-                    bid_vol3=float(bv3),
-                    bid4=(price_raw + bid4_d) / 100.0,
-                    bid_vol4=float(bv4),
-                    bid5=(price_raw + bid5_d) / 100.0,
-                    bid_vol5=float(bv5),
-                    ask1=(price_raw + ask1_d) / 100.0,
-                    ask_vol1=float(av1),
-                    ask2=(price_raw + ask2_d) / 100.0,
-                    ask_vol2=float(av2),
-                    ask3=(price_raw + ask3_d) / 100.0,
-                    ask_vol3=float(av3),
-                    ask4=(price_raw + ask4_d) / 100.0,
-                    ask_vol4=float(av4),
-                    ask5=(price_raw + ask5_d) / 100.0,
-                    ask_vol5=float(av5),
+                    bid1=bids[0][0],
+                    bid_vol1=bids[0][1],
+                    bid2=bids[1][0],
+                    bid_vol2=bids[1][1],
+                    bid3=bids[2][0],
+                    bid_vol3=bids[2][1],
+                    bid4=bids[3][0],
+                    bid_vol4=bids[3][1],
+                    bid5=bids[4][0],
+                    bid_vol5=bids[4][1],
+                    ask1=asks[0][0],
+                    ask_vol1=asks[0][1],
+                    ask2=asks[1][0],
+                    ask_vol2=asks[1][1],
+                    ask3=asks[2][0],
+                    ask_vol3=asks[2][1],
+                    ask4=asks[3][0],
+                    ask_vol4=asks[3][1],
+                    ask5=asks[4][0],
+                    ask_vol5=asks[4][1],
                     rise_speed=rise_speed_raw / 100.0,
                     limit_up=None,
                     limit_down=None,

@@ -4,6 +4,8 @@ import json
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import pytest
+
 from scripts import validate_live as live
 from xmtdx import KlineCategory
 from xmtdx.exceptions import TdxDecodeError
@@ -114,3 +116,23 @@ def test_amount_diagnostic_without_valid_denominator_is_warning():
     checks = {}
     live._run_check(checks, "amount", lambda: live._check_flow_amount(client, flow), warning=True)
     assert checks["amount"]["status"] == "warn"
+
+
+def test_quote_batching_uses_full_list_instead_of_assuming_first_page_contains_stocks():
+    stocks = [SimpleNamespace(market=1, code=f"{600000 + index}") for index in range(81)]
+    client = SimpleNamespace(get_security_quotes=lambda requested: stocks)
+    assert live._check_quote_batching(client, stocks) == {"requested": 81, "received": 81}
+
+
+def test_quote_batching_rejects_reordered_results():
+    stocks = [SimpleNamespace(market=1, code=f"{600000 + index}") for index in range(81)]
+    client = SimpleNamespace(get_security_quotes=lambda requested: stocks[::-1])
+    with pytest.raises(RuntimeError, match="顺序或数量"):
+        live._check_quote_batching(client, stocks)
+
+
+def test_history_total_differences_do_not_claim_exact_match():
+    details = {"daily_shares": 1000, "transaction_shares": 1200,
+               "daily_amount": 10000, "transaction_amount": 12000}
+    with pytest.raises(RuntimeError, match="不能宣称精确一致"):
+        live._check_history_totals(details)

@@ -100,7 +100,7 @@ class TdxConnection:
         self._sock: socket.socket | None = None
 
     def connect(self) -> None:
-        """建立 TCP 连接并完成握手（发送3条 setup 命令）。"""
+        """建立 TCP 连接并完成初始化与 tdxlevel 协商。"""
         if self.is_connected:
             return
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -188,7 +188,7 @@ class TdxConnection:
     # ------------------------------------------------------------------ #
 
     def _send_setup(self) -> None:
-        """按序发送三条握手命令并丢弃响应。"""
+        """按序发送握手报文并完整读取响应。"""
         assert self._sock is not None
         for cmd_bytes in SETUP_COMMANDS:
             self._sock.sendall(cmd_bytes)

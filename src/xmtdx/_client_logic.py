@@ -90,13 +90,16 @@ def _validate_bars(bars: Sequence[SecurityBar], context: str) -> None:
         if not all(math.isfinite(value) for value in values):
             raise TdxResponseError(f"{context}[{index}] 包含非有限数值")
         try:
-            datetime(bar.year, bar.month, bar.day)
+            datetime(bar.year, bar.month, bar.day, bar.hour, bar.minute)
         except ValueError:
             raise TdxResponseError(
-                f"{context}[{index}] 日期非法: {bar.year}-{bar.month}-{bar.day}"
+                f"{context}[{index}] 日期或时间非法: "
+                f"{bar.year}-{bar.month}-{bar.day} {bar.hour}:{bar.minute}"
             ) from None
         if not 1990 <= bar.year <= 2100:
             raise TdxResponseError(f"{context}[{index}] 日期非法: {bar.year}-{bar.month}-{bar.day}")
+        if min(bar.open, bar.close, bar.high, bar.low) < 0:
+            raise TdxResponseError(f"{context}[{index}] 价格为负")
         if bar.vol < 0 or bar.amount < 0:
             raise TdxResponseError(f"{context}[{index}] 成交量或成交额为负")
         if bar.high + 0.001 < max(bar.open, bar.close, bar.low):
@@ -111,8 +114,8 @@ def _validate_minute_bars(
     for index, bar in enumerate(bars):
         if not math.isfinite(bar.price) or bar.price <= 0:
             raise TdxResponseError(f"{context}[{index}] 价格非法: {bar.price}")
-        if bar.vol < 0:
-            raise TdxResponseError(f"{context}[{index}] 成交量为负: {bar.vol}")
+        if not math.isfinite(bar.vol) or bar.vol < 0:
+            raise TdxResponseError(f"{context}[{index}] 成交量非法: {bar.vol}")
         if reference_price and not reference_price / 100 <= bar.price <= reference_price * 100:
             raise TdxResponseError(
                 f"{context}[{index}] 价格 {bar.price} 与参考价 {reference_price} 严重偏离"

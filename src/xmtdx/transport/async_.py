@@ -192,7 +192,7 @@ class AsyncTdxConnection:
     # ------------------------------------------------------------------ #
 
     async def _send_setup(self) -> None:
-        """按序发送三条握手命令并丢弃响应。"""
+        """按序发送握手报文并完整读取响应。"""
         assert self._writer is not None
         assert self._reader is not None
         for cmd_bytes in SETUP_COMMANDS:

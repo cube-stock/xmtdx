@@ -18,6 +18,9 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from xmtdx import KNOWN_HOSTS, AsyncTdxClient, KlineCategory, Market, TdxClient
+from xmtdx._client_logic import validate_history_volume
+from xmtdx._config import MAX_PAGES, TRANSACTION_PAGE_SIZE
+from xmtdx._pagination import TransactionPages
 from xmtdx.validation import validate_timeout
 
 
@@ -107,13 +110,15 @@ async def _validate_async(hosts: list[str], timeout: float) -> dict[str, Any]:
         try:
             count = await client.get_security_count(Market.SH)
             bars = await client.get_bars(Market.SH, "600000", KlineCategory.DAY, 0, 2)
-            _require(count > 0 and bars, "异步基础查询返回空数据")
+            quotes = await client.get_security_quotes([(Market.SH, "600000")])
+            _require(count > 0 and bars and quotes, "异步基础查询返回空数据")
             report["async_core"] = {
                 "ok": True,
                 "status": "pass",
                 "elapsed_ms": round((time.monotonic() - started) * 1000),
                 "count": count,
                 "bars": len(bars),
+                "quotes": len(quotes),
             }
         finally:
             await client.close()
@@ -182,6 +187,73 @@ def _check_flow_amount(client: TdxClient, flow: Any) -> float:
     return classified / quote.amount
 
 
+def _check_quote_batching(client: TdxClient, securities: list[Any] | None = None) -> dict[str, int]:
+    if securities is None:
+        securities = client.get_security_list_all()
+    stocks = [(record.market, record.code) for record in securities[:81]]
+    _require(len(stocks) == 81, "证券列表不足以验证跨 80 只分片")
+    quotes = client.get_security_quotes(stocks)
+    _require([(q.market, q.code) for q in quotes] == stocks, "批量行情顺序或数量不符")
+    return {"requested": len(stocks), "received": len(quotes)}
+
+
+def _check_bar_range(client: TdxClient, history_date: int) -> dict[str, int]:
+    recent = client.get_security_bars(Market.SH, "600000", KlineCategory.DAY, 0, 10)
+    expected = [bar for bar in recent if _date(bar) == history_date]
+    actual = client.get_bars_range(Market.SH, "600000", history_date, history_date)
+    _require(expected and actual == expected, "日期闭区间 K 线与直接查询不一致")
+    return {"date": history_date, "bars": len(actual)}
+
+
+def _check_history_consistency(client: TdxClient, history_date: int) -> dict[str, Any]:
+    daily = client.get_security_bars(Market.SH, "600000", KlineCategory.DAY, 0, 10)
+    bar = next((bar for bar in daily if _date(bar) == history_date), None)
+    _require(bar, "缺少历史日线以核对数据")
+    minutes = _require(
+        client.get_history_minute_time_data(Market.SH, "600000", history_date), "历史分时为空"
+    )
+    minute_shares = sum(record.vol for record in minutes) * 100
+    # 分时为整数手，日线为股；允许一手的取整差异。
+    _require(abs(minute_shares - bar.vol) <= 100, "历史分时与日线成交量不一致")
+    _require(abs(minutes[-1].price - bar.close) <= 0.005, "历史分时末价与日线收盘不一致")
+    pages = TransactionPages()
+    for _ in range(MAX_PAGES):
+        records = client.get_history_transaction_data(
+            Market.SH, "600000", history_date, pages.start, TRANSACTION_PAGE_SIZE
+        )
+        if pages.add(records):
+            break
+    else:
+        raise RuntimeError("历史逐笔超过最大分页数")
+    _require(pages.records, "历史逐笔为空")
+    validate_history_volume(pages.records, bar)
+    for record in pages.records:
+        _require(bar.low - 0.005 <= record.price <= bar.high + 0.005, "历史逐笔超出日线高低价")
+    return {
+        "date": history_date,
+        "daily_shares": bar.vol,
+        "minute_shares": minute_shares,
+        "minute_close": minutes[-1].price,
+        "daily_close": bar.close,
+        "transaction_records": len(pages.records),
+        "transaction_shares": sum(record.vol for record in pages.records) * 100,
+        "transaction_amount": sum(record.price * record.vol * 100 for record in pages.records),
+        "daily_amount": bar.amount,
+    }
+
+
+def _check_history_totals(details: dict[str, Any]) -> None:
+    # 覆盖完整不等于口径完全相同；差异单独报告，不能伪装为完全一致。
+    _require(
+        abs(details["transaction_shares"] - details["daily_shares"]) <= 100,
+        "逐笔与日线成交量总计不一致；需核对盘后记录及服务端口径，不能宣称精确一致",
+    )
+    _require(
+        math.isclose(details["transaction_amount"], details["daily_amount"], rel_tol=1e-6),
+        "逐笔与日线成交额总计不一致；需核对手数取整及服务端口径",
+    )
+
+
 def validate(hosts: list[str], timeout: float, full_list: bool, quick: bool) -> dict[str, Any]:
     validate_timeout(timeout)
     network = _network_environment(hosts)
@@ -218,6 +290,10 @@ def validate(hosts: list[str], timeout: float, full_list: bool, quick: bool) -> 
         "fund_flow_history",
         "fund_flow_amount_diagnostic",
         "async_core",
+        "quote_batching",
+        "bar_range",
+        "history_consistency",
+        "history_trade_totals",
     ] + [f"stock_bars_{category.name.lower()}" for category in KlineCategory]
     for name in dependent:
         _skip(checks, name, "前置检查尚未通过")
@@ -264,8 +340,9 @@ def validate(hosts: list[str], timeout: float, full_list: bool, quick: bool) -> 
                 f"security_count_{market.name.lower()}",
                 lambda market=market: _require(client.get_security_count(market), "证券数量为 0"),
             )
+        securities = None
         if full_list:
-            _run_check(
+            securities = _run_check(
                 checks,
                 "security_list_all",
                 lambda: _require(client.get_security_list_all(), "沪深 A 股列表为空"),
@@ -357,6 +434,31 @@ def validate(hosts: list[str], timeout: float, full_list: bool, quick: bool) -> 
         _run_check(checks, "market_stat", lambda: _check_market_stat(client))
         _run_check(checks, "price_limits", lambda: _check_price_limits(client))
         if not quick:
+            details = _run_check(
+                checks, "quote_batching", lambda: _check_quote_batching(client, securities)
+            )
+            if details is not None:
+                checks["quote_batching"]["details"] = details
+            if historical_dates:
+                history_date = max(historical_dates)
+                details = _run_check(
+                    checks, "bar_range", lambda: _check_bar_range(client, history_date)
+                )
+                if details is not None:
+                    checks["bar_range"]["details"] = details
+                details = _run_check(
+                    checks, "history_consistency",
+                    lambda: _check_history_consistency(client, history_date),
+                )
+                if details is not None:
+                    checks["history_consistency"]["details"] = details
+                    _run_check(
+                        checks, "history_trade_totals", lambda: _check_history_totals(details),
+                        warning=True,
+                    )
+            else:
+                for name in ("bar_range", "history_consistency", "history_trade_totals"):
+                    _skip(checks, name, "未取得过去交易日的日 K 线")
             _run_check(
                 checks,
                 "block_info",
@@ -381,7 +483,7 @@ def validate(hosts: list[str], timeout: float, full_list: bool, quick: bool) -> 
                 checks,
                 "fund_flow_history",
                 lambda: _require(
-                    client.get_history_fund_flow(Market.SH, "600000", 0, 1), "历史资金流为空"
+                    client.get_history_fund_flow(Market.SH, "600000", 1, 1), "历史资金流为空"
                 ),
             )
         else:
@@ -391,6 +493,10 @@ def validate(hosts: list[str], timeout: float, full_list: bool, quick: bool) -> 
                 "fund_flow_current",
                 "fund_flow_history",
                 "fund_flow_amount_diagnostic",
+                "quote_batching",
+                "bar_range",
+                "history_consistency",
+                "history_trade_totals",
             ):
                 _skip(checks, name, "--quick 跳过耗时检查")
     finally:

@@ -28,8 +28,6 @@ class GetTransactionDataCmd(BaseCommand[list[TransactionRecord]]):
         header = bytes.fromhex("0c170801010 10e000e00c50f".replace(" ", ""))
         return header + struct.pack("<H6sHH", int(self.market), self.code, self.start, self.count)
 
-
-
     def parse_response(self, body: bytes) -> list[TransactionRecord]:
         return _parse_transaction_body(body)
 

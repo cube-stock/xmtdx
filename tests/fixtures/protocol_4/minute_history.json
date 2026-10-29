@@ -1,0 +1,1211 @@
+{
+  "captured_at": "2026-10-29T10:56:51.225695+08:00",
+  "host": "180.153.18.170",
+  "port": 7709,
+  "request": "0c01300001010d000d00b40fa428350101363030303030",
+  "header": "b1cb74001c0130000100b40f3c03cd03",
+  "raw_body": "789c0d925d5393671086effb49482009498048c434180610104404c7616c759e7dde3791d2da8e9de9614fea0f680f3ab6d319a7866fc287a885100d501215533e2410be4c8b3fa4a7fd01fd097df7647776aeddd97be7fe0fa7ad71c986fe7117ff552aa3328b9481e55fd9b5fd9d0466efc0ffee3351930370e77f70dff8f81b820b7d683bfb497ce55b52b7f6109edc03fa8ebe90da9793a47baf03a1931ce1ce5d75c5f61f7182956d65823b8fa1562308941fd1931d14d776029e49236aac8feec56be02b1fd56650d444c2e1a2a22ab755cd623fbdcf8751f7daa67f79849ea984f195bea5e7492fc29b8fe99eb804ef423f6af2edf48c7748cd4e8778f76f434d5f20e7bca676ef7bba0edac435de2d98f000efdd44d103f56704acd6432db43aba6e521db758fa4043cf448cbc88c01a1ba61c341b398f40961a68aa09b1d34eef551b241fa4aed642ffa5a0ab11d1b35ed1690f24e3a39ef342affb61329d622fdf83b53d00f9db67cc492392878390837ad8b96e314b1131a5a0cb5e1932321d80ec7b91fce33acc6c08321e1033d700fb2446f9e837a9e35e5ac528a4ec858cf960175a211b3ec8b45f24ed53d66e9b49ceb7538a0e5beda4493788751841aad005ebed05985248ec37cd3499304daec1d827cdeacbe387927ad30b731e96d1ac41b2d0017b2b0653f1897d7011e64510662680918901b1cb11f96af53e464e7ac49a0d33397b09c94a5c469f0cd13a6ba0bd1385997234cf04f9f99ca6b5d8426ba74decf71d923cbaa2ac7731316321582bad30a7219a53e7a72b75b4d76f40d6fd4ab28dce8ddd900f8d6256138eb626ca5c5c49ced199ed859e8f2ae6af01c566e03c0ee66dd1533dd0874dd06b5162b705a88688f126c1ba930b61a39f8e10cb8dc07e98dcbae9cc85046b4138ac91c32475fa1674ba4974d94d3d5d0f5db907fdd4efecec22d6ea81ad76d18777a1cfeb154b026ef493e351838d46221302c73e81da4b09b231602f217ad1f1c3f4a0c307a0f37191a33ec8ef8e570a5f2bac0e832f1f90bbdde4760ceaad082b4972e93a988e0bcfee92c51ef059bbb03c04be1e14ec5e21b3a374957f71d86fc025a75efb116ae58eb09402373b05cf3e25e62f0bf62e93cfaf0a2ec2096efdfc3f035bf2a1",
+  "body": "f000b81e1d41970fdb04a3e402028a028a8e014130957a0127ab5d410c893d000ba83c4102853000049c6f0431bf7f000e8d2c0021b974410ab13641099d6300069951010ab54b41089a85010104ae24000fb799010004992a031bb076018401b4ab02420eac7d00029814000cb176010697324103ab20000685424102822c01048e2d00019b0a0102a10e41028420000298174102b43a02058e2e010792380009a444010b954801068620420aa9550106802b0010a17d0104841a00078d2e00059c23010683244105ac244107b03a0002871501018b074208ae620103b22141038328410084060000af040100a3060002aa140001bb0d00028d1e410285340102b6194340b2400040881442419314004382380141b2164241be14004190110142bb204144813801419b2100419c0e0140bb080040bc020040bb14414089074140810600418a0a01408b0700409e0b00428a25414495470043ab300041bd0a4242b7120045b3320041b20d00449928414290144142a90e034496334241870c0041b0070045a02f0042890f0041830c41428b110044b71b0141bf0b4246b62b0143a3170041b1070041820a0044a21e00419f0a0041870b4141810a0243ad2142458c230141a30b4246bb25014281114143b3140046a2270043a6150042a90f4144a51601428a10014299114244b716024cb6634146a52b0042be10414a97420045a2240044a71b0042b40a4144b2180042930e0042880c004884304144b114414e984d0048b729414389100145891a0045b41d414a80330143b9110144ac170042860b0042880e01498b4001438e190143ac214144af244145b5260243a81b4142820f0043961e0042b80f0142b8140041960901449e3100419e0b024197120042a9280041ba124142982000419f1301418b1d0241991e0041972b00408c1702019c2d0000a3160000be1d00019c44414086290040b31300409d170100ad190000bb0f0100831341009e0f0100a21042408f48010095120000b0100101a7340000be0f41009d0e0000ad194241b34501408136004081134140b1040140870d0040b44700408f0b0040b32701009d0d0000a7234140b33e0040be0d0201a94100019f2e0101831742009f1201008a0f0001821c0002ae464100971b0000ae2041408e08004087320040be0c00409c1d4141b52c004194210041a24f0200983800019a510101ad280101ab1b0002a6414101b4450101902f0001811d4101b93e0101a329000191234101b1330001a4324100ad260101974a0103b1784101b4520001904a01039d700002963d4101a9460001a1254100913b01008c1f4100ae1f0101922a4100180000000001a777",
+  "expected": [
+    {
+      "price": 9.83,
+      "vol": 22819,
+      "unknown_1": -283
+    },
+    {
+      "price": 9.85,
+      "vol": 9098,
+      "unknown_1": 138
+    },
+    {
+      "price": 9.84,
+      "vol": 7829,
+      "unknown_1": 48
+    },
+    {
+      "price": 9.85,
+      "vol": 5995,
+      "unknown_1": 39
+    },
+    {
+      "price": 9.84,
+      "vol": 3913,
+      "unknown_1": 12
+    },
+    {
+      "price": 9.84,
+      "vol": 3880,
+      "unknown_1": 11
+    },
+    {
+      "price": 9.83,
+      "vol": 3077,
+      "unknown_1": 2
+    },
+    {
+      "price": 9.83,
+      "vol": 7132,
+      "unknown_1": 4
+    },
+    {
+      "price": 9.87,
+      "vol": 8191,
+      "unknown_1": 49
+    },
+    {
+      "price": 9.87,
+      "vol": 2829,
+      "unknown_1": 14
+    },
+    {
+      "price": 9.87,
+      "vol": 7481,
+      "unknown_1": 33
+    },
+    {
+      "price": 9.86,
+      "vol": 3505,
+      "unknown_1": 10
+    },
+    {
+      "price": 9.85,
+      "vol": 6365,
+      "unknown_1": 9
+    },
+    {
+      "price": 9.85,
+      "vol": 5209,
+      "unknown_1": 6
+    },
+    {
+      "price": 9.86,
+      "vol": 4853,
+      "unknown_1": 10
+    },
+    {
+      "price": 9.85,
+      "vol": 8538,
+      "unknown_1": 8
+    },
+    {
+      "price": 9.86,
+      "vol": 2350,
+      "unknown_1": 4
+    },
+    {
+      "price": 9.86,
+      "vol": 9847,
+      "unknown_1": 15
+    },
+    {
+      "price": 9.86,
+      "vol": 2713,
+      "unknown_1": 4
+    },
+    {
+      "price": 9.89,
+      "vol": 7600,
+      "unknown_1": 27
+    },
+    {
+      "price": 9.9,
+      "vol": 19188,
+      "unknown_1": 68
+    },
+    {
+      "price": 9.88,
+      "vol": 8044,
+      "unknown_1": 14
+    },
+    {
+      "price": 9.88,
+      "vol": 1304,
+      "unknown_1": 2
+    },
+    {
+      "price": 9.88,
+      "vol": 7601,
+      "unknown_1": 12
+    },
+    {
+      "price": 9.89,
+      "vol": 3223,
+      "unknown_1": 6
+    },
+    {
+      "price": 9.88,
+      "vol": 2091,
+      "unknown_1": 3
+    },
+    {
+      "price": 9.88,
+      "vol": 4229,
+      "unknown_1": 6
+    },
+    {
+      "price": 9.87,
+      "vol": 2818,
+      "unknown_1": 2
+    },
+    {
+      "price": 9.88,
+      "vol": 2894,
+      "unknown_1": 4
+    },
+    {
+      "price": 9.88,
+      "vol": 667,
+      "unknown_1": 1
+    },
+    {
+      "price": 9.89,
+      "vol": 929,
+      "unknown_1": 2
+    },
+    {
+      "price": 9.88,
+      "vol": 2052,
+      "unknown_1": 2
+    },
+    {
+      "price": 9.88,
+      "vol": 1496,
+      "unknown_1": 2
+    },
+    {
+      "price": 9.87,
+      "vol": 3764,
+      "unknown_1": 2
+    },
+    {
+      "price": 9.89,
+      "vol": 2958,
+      "unknown_1": 5
+    },
+    {
+      "price": 9.9,
+      "vol": 3602,
+      "unknown_1": 7
+    },
+    {
+      "price": 9.9,
+      "vol": 4388,
+      "unknown_1": 9
+    },
+    {
+      "price": 9.91,
+      "vol": 4629,
+      "unknown_1": 11
+    },
+    {
+      "price": 9.92,
+      "vol": 2054,
+      "unknown_1": 6
+    },
+    {
+      "price": 9.9,
+      "vol": 5481,
+      "unknown_1": 10
+    },
+    {
+      "price": 9.91,
+      "vol": 2752,
+      "unknown_1": 6
+    },
+    {
+      "price": 9.91,
+      "vol": 8033,
+      "unknown_1": 16
+    },
+    {
+      "price": 9.92,
+      "vol": 1668,
+      "unknown_1": 4
+    },
+    {
+      "price": 9.92,
+      "vol": 2957,
+      "unknown_1": 7
+    },
+    {
+      "price": 9.92,
+      "vol": 2268,
+      "unknown_1": 5
+    },
+    {
+      "price": 9.93,
+      "vol": 2307,
+      "unknown_1": 6
+    },
+    {
+      "price": 9.92,
+      "vol": 2348,
+      "unknown_1": 5
+    },
+    {
+      "price": 9.91,
+      "vol": 3760,
+      "unknown_1": 7
+    },
+    {
+      "price": 9.91,
+      "vol": 1351,
+      "unknown_1": 2
+    },
+    {
+      "price": 9.92,
+      "vol": 459,
+      "unknown_1": 1
+    },
+    {
+      "price": 9.9,
+      "vol": 6318,
+      "unknown_1": 8
+    },
+    {
+      "price": 9.91,
+      "vol": 2162,
+      "unknown_1": 3
+    },
+    {
+      "price": 9.9,
+      "vol": 2563,
+      "unknown_1": 3
+    },
+    {
+      "price": 9.89,
+      "vol": 388,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.89,
+      "vol": 303,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.9,
+      "vol": 419,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.9,
+      "vol": 1322,
+      "unknown_1": 2
+    },
+    {
+      "price": 9.9,
+      "vol": 891,
+      "unknown_1": 1
+    },
+    {
+      "price": 9.9,
+      "vol": 1933,
+      "unknown_1": 2
+    },
+    {
+      "price": 9.89,
+      "vol": 3333,
+      "unknown_1": 2
+    },
+    {
+      "price": 9.9,
+      "vol": 1654,
+      "unknown_1": 2
+    },
+    {
+      "price": 9.87,
+      "vol": 4146,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.87,
+      "vol": 1288,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.85,
+      "vol": 1299,
+      "unknown_1": -1
+    },
+    {
+      "price": 9.85,
+      "vol": 3586,
+      "unknown_1": -3
+    },
+    {
+      "price": 9.86,
+      "vol": 1458,
+      "unknown_1": -1
+    },
+    {
+      "price": 9.84,
+      "vol": 1342,
+      "unknown_1": -1
+    },
+    {
+      "price": 9.84,
+      "vol": 1104,
+      "unknown_1": -1
+    },
+    {
+      "price": 9.85,
+      "vol": 2107,
+      "unknown_1": -2
+    },
+    {
+      "price": 9.84,
+      "vol": 3585,
+      "unknown_1": -4
+    },
+    {
+      "price": 9.85,
+      "vol": 2139,
+      "unknown_1": -1
+    },
+    {
+      "price": 9.85,
+      "vol": 924,
+      "unknown_1": -1
+    },
+    {
+      "price": 9.86,
+      "vol": 571,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.86,
+      "vol": 188,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.86,
+      "vol": 1339,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.85,
+      "vol": 457,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.84,
+      "vol": 385,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.84,
+      "vol": 650,
+      "unknown_1": -1
+    },
+    {
+      "price": 9.85,
+      "vol": 459,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.85,
+      "vol": 734,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.85,
+      "vol": 2378,
+      "unknown_1": -2
+    },
+    {
+      "price": 9.84,
+      "vol": 4565,
+      "unknown_1": -4
+    },
+    {
+      "price": 9.84,
+      "vol": 3115,
+      "unknown_1": -3
+    },
+    {
+      "price": 9.84,
+      "vol": 701,
+      "unknown_1": -1
+    },
+    {
+      "price": 9.82,
+      "vol": 1207,
+      "unknown_1": -2
+    },
+    {
+      "price": 9.82,
+      "vol": 3251,
+      "unknown_1": -5
+    },
+    {
+      "price": 9.82,
+      "vol": 882,
+      "unknown_1": -1
+    },
+    {
+      "price": 9.82,
+      "vol": 2585,
+      "unknown_1": -4
+    },
+    {
+      "price": 9.81,
+      "vol": 1296,
+      "unknown_1": -2
+    },
+    {
+      "price": 9.8,
+      "vol": 937,
+      "unknown_1": -2
+    },
+    {
+      "price": 9.83,
+      "vol": 3286,
+      "unknown_1": -4
+    },
+    {
+      "price": 9.81,
+      "vol": 775,
+      "unknown_1": -1
+    },
+    {
+      "price": 9.81,
+      "vol": 496,
+      "unknown_1": -1
+    },
+    {
+      "price": 9.81,
+      "vol": 3040,
+      "unknown_1": -5
+    },
+    {
+      "price": 9.81,
+      "vol": 969,
+      "unknown_1": -2
+    },
+    {
+      "price": 9.81,
+      "vol": 771,
+      "unknown_1": -1
+    },
+    {
+      "price": 9.8,
+      "vol": 1099,
+      "unknown_1": -2
+    },
+    {
+      "price": 9.8,
+      "vol": 1783,
+      "unknown_1": -4
+    },
+    {
+      "price": 9.81,
+      "vol": 767,
+      "unknown_1": -1
+    },
+    {
+      "price": 9.79,
+      "vol": 2806,
+      "unknown_1": -6
+    },
+    {
+      "price": 9.8,
+      "vol": 1507,
+      "unknown_1": -3
+    },
+    {
+      "price": 9.8,
+      "vol": 497,
+      "unknown_1": -1
+    },
+    {
+      "price": 9.8,
+      "vol": 642,
+      "unknown_1": -1
+    },
+    {
+      "price": 9.8,
+      "vol": 1954,
+      "unknown_1": -4
+    },
+    {
+      "price": 9.8,
+      "vol": 671,
+      "unknown_1": -1
+    },
+    {
+      "price": 9.8,
+      "vol": 711,
+      "unknown_1": -1
+    },
+    {
+      "price": 9.79,
+      "vol": 641,
+      "unknown_1": -1
+    },
+    {
+      "price": 9.81,
+      "vol": 2157,
+      "unknown_1": -3
+    },
+    {
+      "price": 9.79,
+      "vol": 2252,
+      "unknown_1": -5
+    },
+    {
+      "price": 9.8,
+      "vol": 739,
+      "unknown_1": -1
+    },
+    {
+      "price": 9.78,
+      "vol": 2427,
+      "unknown_1": -6
+    },
+    {
+      "price": 9.79,
+      "vol": 1089,
+      "unknown_1": -2
+    },
+    {
+      "price": 9.78,
+      "vol": 1331,
+      "unknown_1": -3
+    },
+    {
+      "price": 9.78,
+      "vol": 2530,
+      "unknown_1": -6
+    },
+    {
+      "price": 9.78,
+      "vol": 1382,
+      "unknown_1": -3
+    },
+    {
+      "price": 9.78,
+      "vol": 1001,
+      "unknown_1": -2
+    },
+    {
+      "price": 9.77,
+      "vol": 1445,
+      "unknown_1": -4
+    },
+    {
+      "price": 9.78,
+      "vol": 1034,
+      "unknown_1": -2
+    },
+    {
+      "price": 9.79,
+      "vol": 1113,
+      "unknown_1": -2
+    },
+    {
+      "price": 9.77,
+      "vol": 1463,
+      "unknown_1": -4
+    },
+    {
+      "price": 9.79,
+      "vol": 6390,
+      "unknown_1": -12
+    },
+    {
+      "price": 9.78,
+      "vol": 2789,
+      "unknown_1": -6
+    },
+    {
+      "price": 9.78,
+      "vol": 1086,
+      "unknown_1": -2
+    },
+    {
+      "price": 9.77,
+      "vol": 4247,
+      "unknown_1": -10
+    },
+    {
+      "price": 9.77,
+      "vol": 2338,
+      "unknown_1": -5
+    },
+    {
+      "price": 9.77,
+      "vol": 1767,
+      "unknown_1": -4
+    },
+    {
+      "price": 9.77,
+      "vol": 692,
+      "unknown_1": -2
+    },
+    {
+      "price": 9.76,
+      "vol": 1586,
+      "unknown_1": -4
+    },
+    {
+      "price": 9.76,
+      "vol": 915,
+      "unknown_1": -2
+    },
+    {
+      "price": 9.76,
+      "vol": 776,
+      "unknown_1": -2
+    },
+    {
+      "price": 9.76,
+      "vol": 3076,
+      "unknown_1": -8
+    },
+    {
+      "price": 9.75,
+      "vol": 1329,
+      "unknown_1": -4
+    },
+    {
+      "price": 9.74,
+      "vol": 4952,
+      "unknown_1": -14
+    },
+    {
+      "price": 9.74,
+      "vol": 2679,
+      "unknown_1": -8
+    },
+    {
+      "price": 9.73,
+      "vol": 1033,
+      "unknown_1": -3
+    },
+    {
+      "price": 9.74,
+      "vol": 1673,
+      "unknown_1": -5
+    },
+    {
+      "price": 9.74,
+      "vol": 1908,
+      "unknown_1": -5
+    },
+    {
+      "price": 9.73,
+      "vol": 3264,
+      "unknown_1": -10
+    },
+    {
+      "price": 9.74,
+      "vol": 1145,
+      "unknown_1": -3
+    },
+    {
+      "price": 9.75,
+      "vol": 1516,
+      "unknown_1": -4
+    },
+    {
+      "price": 9.75,
+      "vol": 710,
+      "unknown_1": -2
+    },
+    {
+      "price": 9.75,
+      "vol": 904,
+      "unknown_1": -2
+    },
+    {
+      "price": 9.76,
+      "vol": 4107,
+      "unknown_1": -9
+    },
+    {
+      "price": 9.77,
+      "vol": 1614,
+      "unknown_1": -3
+    },
+    {
+      "price": 9.78,
+      "vol": 2156,
+      "unknown_1": -3
+    },
+    {
+      "price": 9.77,
+      "vol": 2351,
+      "unknown_1": -4
+    },
+    {
+      "price": 9.76,
+      "vol": 2485,
+      "unknown_1": -5
+    },
+    {
+      "price": 9.78,
+      "vol": 1768,
+      "unknown_1": -3
+    },
+    {
+      "price": 9.77,
+      "vol": 962,
+      "unknown_1": -2
+    },
+    {
+      "price": 9.77,
+      "vol": 1942,
+      "unknown_1": -3
+    },
+    {
+      "price": 9.77,
+      "vol": 1016,
+      "unknown_1": -2
+    },
+    {
+      "price": 9.78,
+      "vol": 1336,
+      "unknown_1": -2
+    },
+    {
+      "price": 9.78,
+      "vol": 598,
+      "unknown_1": -1
+    },
+    {
+      "price": 9.79,
+      "vol": 3166,
+      "unknown_1": -4
+    },
+    {
+      "price": 9.79,
+      "vol": 734,
+      "unknown_1": -1
+    },
+    {
+      "price": 9.81,
+      "vol": 1175,
+      "unknown_1": -1
+    },
+    {
+      "price": 9.81,
+      "vol": 2601,
+      "unknown_1": -2
+    },
+    {
+      "price": 9.81,
+      "vol": 1210,
+      "unknown_1": -1
+    },
+    {
+      "price": 9.8,
+      "vol": 2072,
+      "unknown_1": -2
+    },
+    {
+      "price": 9.8,
+      "vol": 1247,
+      "unknown_1": -1
+    },
+    {
+      "price": 9.81,
+      "vol": 1867,
+      "unknown_1": -1
+    },
+    {
+      "price": 9.83,
+      "vol": 1945,
+      "unknown_1": -1
+    },
+    {
+      "price": 9.83,
+      "vol": 2775,
+      "unknown_1": -1
+    },
+    {
+      "price": 9.83,
+      "vol": 1484,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.85,
+      "vol": 2908,
+      "unknown_1": 1
+    },
+    {
+      "price": 9.85,
+      "vol": 1443,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.85,
+      "vol": 1918,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.85,
+      "vol": 4380,
+      "unknown_1": 1
+    },
+    {
+      "price": 9.84,
+      "vol": 2630,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.84,
+      "vol": 1267,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.84,
+      "vol": 1501,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.85,
+      "vol": 1645,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.85,
+      "vol": 1019,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.86,
+      "vol": 1219,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.85,
+      "vol": 990,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.86,
+      "vol": 1058,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.84,
+      "vol": 4623,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.85,
+      "vol": 1173,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.85,
+      "vol": 1072,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.86,
+      "vol": 3367,
+      "unknown_1": 1
+    },
+    {
+      "price": 9.86,
+      "vol": 1022,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.85,
+      "vol": 925,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.85,
+      "vol": 1645,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.83,
+      "vol": 4467,
+      "unknown_1": -1
+    },
+    {
+      "price": 9.84,
+      "vol": 3457,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.84,
+      "vol": 1217,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.83,
+      "vol": 305,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.84,
+      "vol": 839,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.84,
+      "vol": 4596,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.84,
+      "vol": 719,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.84,
+      "vol": 2547,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.85,
+      "vol": 861,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.85,
+      "vol": 2279,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.84,
+      "vol": 4019,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.84,
+      "vol": 894,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.86,
+      "vol": 4201,
+      "unknown_1": 1
+    },
+    {
+      "price": 9.86,
+      "vol": 2975,
+      "unknown_1": 1
+    },
+    {
+      "price": 9.87,
+      "vol": 1475,
+      "unknown_1": 1
+    },
+    {
+      "price": 9.85,
+      "vol": 1183,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.86,
+      "vol": 970,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.86,
+      "vol": 1794,
+      "unknown_1": 1
+    },
+    {
+      "price": 9.86,
+      "vol": 4526,
+      "unknown_1": 2
+    },
+    {
+      "price": 9.85,
+      "vol": 1751,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.85,
+      "vol": 2094,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.84,
+      "vol": 526,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.84,
+      "vol": 3207,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.84,
+      "vol": 830,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.84,
+      "vol": 1884,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.83,
+      "vol": 2869,
+      "unknown_1": -1
+    },
+    {
+      "price": 9.83,
+      "vol": 2132,
+      "unknown_1": -1
+    },
+    {
+      "price": 9.83,
+      "vol": 5090,
+      "unknown_1": -1
+    },
+    {
+      "price": 9.85,
+      "vol": 3608,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.85,
+      "vol": 5210,
+      "unknown_1": 1
+    },
+    {
+      "price": 9.86,
+      "vol": 2605,
+      "unknown_1": 1
+    },
+    {
+      "price": 9.87,
+      "vol": 1771,
+      "unknown_1": 1
+    },
+    {
+      "price": 9.87,
+      "vol": 4198,
+      "unknown_1": 2
+    },
+    {
+      "price": 9.86,
+      "vol": 4468,
+      "unknown_1": 1
+    },
+    {
+      "price": 9.87,
+      "vol": 3024,
+      "unknown_1": 1
+    },
+    {
+      "price": 9.87,
+      "vol": 1857,
+      "unknown_1": 1
+    },
+    {
+      "price": 9.86,
+      "vol": 4025,
+      "unknown_1": 1
+    },
+    {
+      "price": 9.87,
+      "vol": 2659,
+      "unknown_1": 1
+    },
+    {
+      "price": 9.87,
+      "vol": 2257,
+      "unknown_1": 1
+    },
+    {
+      "price": 9.86,
+      "vol": 3313,
+      "unknown_1": 1
+    },
+    {
+      "price": 9.86,
+      "vol": 3236,
+      "unknown_1": 1
+    },
+    {
+      "price": 9.85,
+      "vol": 2477,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.86,
+      "vol": 4759,
+      "unknown_1": 1
+    },
+    {
+      "price": 9.87,
+      "vol": 7729,
+      "unknown_1": 3
+    },
+    {
+      "price": 9.86,
+      "vol": 5300,
+      "unknown_1": 1
+    },
+    {
+      "price": 9.86,
+      "vol": 4752,
+      "unknown_1": 1
+    },
+    {
+      "price": 9.87,
+      "vol": 7197,
+      "unknown_1": 3
+    },
+    {
+      "price": 9.87,
+      "vol": 3926,
+      "unknown_1": 2
+    },
+    {
+      "price": 9.86,
+      "vol": 4521,
+      "unknown_1": 1
+    },
+    {
+      "price": 9.86,
+      "vol": 2401,
+      "unknown_1": 1
+    },
+    {
+      "price": 9.85,
+      "vol": 3793,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.86,
+      "vol": 1996,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.85,
+      "vol": 2030,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.86,
+      "vol": 2706,
+      "unknown_1": 1
+    },
+    {
+      "price": 9.85,
+      "vol": 24,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.85,
+      "vol": 0,
+      "unknown_1": 0
+    },
+    {
+      "price": 9.85,
+      "vol": 7655,
+      "unknown_1": 1
+    }
+  ]
+}
